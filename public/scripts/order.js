@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function fetchProducts() {
     try {
-        const url = new URL('/api/products', window.location.origin);
+        const url = new URL('/api/products', "http://localhost:8082");
         url.searchParams.append('page', state.currentPage);
         url.searchParams.append('per_page', state.perPage);
 
@@ -82,40 +82,48 @@ async function fetchProducts() {
         }
 
         const data = await response.json();
-        state.products = data.products;
-        state.total = data.total;
+        state.products = data.products || [];
+        state.total = data.total || 0;
         
         renderProducts();
         renderPagination();
     } catch (error) {
         console.error('Error fetching products:', error);
+        DOM.productsList.innerHTML = `<div class="main__products-empty">Error loading products: ${error.message}</div>`;
     }
 }
 
 function renderProducts() {
     DOM.productsList.innerHTML = '';
 
-    if (state.products.length === 0) {
+    if (!state.products || state.products.length === 0) {
         DOM.productsList.innerHTML = '<div class="main__products-empty">Products not found</div>';
         return;
     }
 
     state.products.forEach(product => {
+        const id = product.ID || product.id;
+        const name = product.Name || product.name;
+        const price = product.Price !== undefined ? product.Price : 
+                      product.price !== undefined ? product.price : 0;
+        const stock = product.Stock !== undefined ? product.Stock : 
+                      product.stock !== undefined ? product.stock : 0;
+
         const productElement = document.createElement('div');
         productElement.className = 'main__product-item';
         
-        const isInCart = state.cart.some(item => item.id === product.ID);
-        const isOutOfStock = product.Stock <= 0;
+        const isInCart = state.cart.some(item => item.id === id);
+        const isOutOfStock = stock <= 0;
         
         productElement.innerHTML = `
-            <div class="main__product-item-name">${product.Name}</div>
-            <div class="main__product-item-price">${product.Price.toFixed(2)} ₸</div>
-            <div class="main__product-item-stock">Stock: ${product.Stock}</div>
+            <div class="main__product-item-name">${name}</div>
+            <div class="main__product-item-price">${parseFloat(price).toFixed(2)} ₸</div>
+            <div class="main__product-item-stock">Stock: ${stock}</div>
             <button class="main__product-item-button" 
-                    data-id="${product.ID}" 
-                    data-name="${product.Name}" 
-                    data-price="${product.Price}" 
-                    data-stock="${product.Stock}"
+                    data-id="${id}" 
+                    data-name="${name}" 
+                    data-price="${price}" 
+                    data-stock="${stock}"
                     ${isInCart || isOutOfStock ? 'disabled' : ''}
             >
                 ${isInCart ? 'In cart' : isOutOfStock ? 'Out of stock' : 'Add to cart'}
@@ -191,7 +199,7 @@ function addToCart(event) {
     }
     
     button.disabled = true;
-    button.textContent = 'Cart';
+    button.textContent = 'In cart';
     
     localStorage.setItem('cart', JSON.stringify(state.cart));
     
@@ -334,10 +342,14 @@ async function placeOrder(event) {
             }))
         };
         
-        const response = await fetch('/api/orders', {
+        console.log("Sending order data:", orderData);
+        
+        const response = await fetch('http://localhost:8093/api/orders', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Origin': window.location.origin
             },
             body: JSON.stringify(orderData)
         });
@@ -348,51 +360,64 @@ async function placeOrder(event) {
         }
         
         const result = await response.json();
+        console.log("Order created:", result);
         
         state.cart = [];
         localStorage.setItem('cart', JSON.stringify(state.cart));
         updateCart();
         
         fetchProducts();
-        
         fetchOrders();
         
-        alert(`Order created! Order number: ${result.order_id}`);
+        alert(`Order created successfully! Order ID: ${result.order_id}`);
         
     } catch (error) {
         console.error('Error creating order:', error);
-        alert(error.message);
+        alert(`Failed to create order: ${error.message}`);
     }
 }
 
 async function fetchOrders() {
     const userId = DOM.userIdFilter.value.trim();
-    if (!userId) return;
+    if (!userId) {
+        DOM.ordersList.innerHTML = '<div class="main__orders-empty">Please enter user ID</div>';
+        return;
+    }
     
     try {
-        const url = new URL('/api/orders', window.location.origin);
+        const url = new URL('/api/orders', 'http://localhost:8093');
         url.searchParams.append('user_id', userId);
         
-        const response = await fetch(url);
+        console.log("Fetching orders from:", url.toString());
+        
+        const response = await fetch(url, {
+            headers: {
+                'Accept': 'application/json',
+                'Origin': window.location.origin
+            }
+        });
+        
         if (!response.ok) {
             throw new Error(`Error fetching orders: ${response.statusText}`);
         }
         
-        const orders = await response.json();
-        state.orders = orders;
+        const data = await response.json();
+        console.log("Orders received:", data);
+        
+        state.orders = data.orders || [];
         
         renderOrders();
     } catch (error) {
         console.error('Error fetching orders:', error);
-        DOM.ordersList.innerHTML = '<div class="main__orders-error">Error fetching orders</div>';
+        DOM.ordersList.innerHTML = `<div class="main__orders-error">Error fetching orders: ${error.message}</div>`;
     }
 }
 
 function renderOrders() {
     DOM.ordersList.innerHTML = '';
     
-    if (state.orders.length === 0) {
-        DOM.ordersList.innerHTML = '<div class="main__orders-empty">You do not have any orders</div>';
+    if (!state.orders || state.orders.length === 0) {
+        DOM.ordersList.innerHTML = '<div class="main__orders-empty">No orders found</div>';
         return;
     }
     
@@ -400,18 +425,32 @@ function renderOrders() {
         const orderElement = document.createElement('div');
         orderElement.className = 'main__order-item';
         
-        const createdDate = new Date(order.created_at).toLocaleString();
+        let createdDate = 'Date unavailable';
+        try {
+            if (order.created_at) {
+                createdDate = new Date(order.created_at).toLocaleString();
+            } else if (order.CreatedAt) {
+                createdDate = new Date(order.CreatedAt).toLocaleString();
+            }
+        } catch (e) {
+            console.error('Error parsing date:', e);
+        }
+        
+        const id = order.id || order.ID;
+        const status = order.status || order.Status || 'unknown';
+        const totalPrice = order.total_price || order.TotalPrice || 0;
+        const items = order.items || order.Items || [];
         
         orderElement.innerHTML = `
             <div class="main__order-item-header">
                 <div class="main__order-item-date">${createdDate}</div>
-                <div class="main__order-item-id">ID: ${order.id}</div>
-                <div class="main__order-item-status ${order.status}">${getStatusText(order.status)}</div>
+                <div class="main__order-item-id">ID: ${id}</div>
+                <div class="main__order-item-status ${status}">${getStatusText(status)}</div>
             </div>
-            ${order.items ? renderOrderItems(order.items) : '<div class="main__order-item-products-empty">Details are not available</div>'}
+            ${renderOrderItems(items)}
             <div class="main__order-item-total">
-                <span>Amount:</span>
-                <span>${order.total_price.toFixed(2)} ₸</span>
+                <span>Total:</span>
+                <span>${parseFloat(totalPrice).toFixed(2)} ₸</span>
             </div>
             ${renderOrderActions(order)}
         `;
@@ -420,23 +459,29 @@ function renderOrders() {
         
         const actionButtons = orderElement.querySelectorAll('.main__order-item-button');
         actionButtons.forEach(button => {
-            button.addEventListener('click', () => updateOrderStatus(order.id, button.dataset.status));
+            button.addEventListener('click', () => updateOrderStatus(id, button.dataset.status));
         });
     });
 }
 
 function renderOrderItems(items) {
-    if (!items || items.length === 0) return '';
+    if (!items || items.length === 0) {
+        return '<div class="main__order-item-products-empty">No items in this order</div>';
+    }
     
     let html = '<div class="main__order-item-products">';
     
     items.forEach(item => {
-        const productName = item.product ? item.product.Name : 'Product not found';
+        const product = item.product || item.Product;
+        const productName = product ? (product.Name || product.name || 'Unknown product') : 'Product details unavailable';
+        const quantity = item.quantity || item.Quantity || 0;
+        const price = item.price || item.Price || 0;
+        
         html += `
             <div class="main__order-item-product">
                 <div class="main__order-item-product-name">${productName}</div>
-                <div class="main__order-item-product-quantity">Quantity: ${item.quantity}</div>
-                <div class="main__order-item-product-price">${item.price.toFixed(2)} ₸</div>
+                <div class="main__order-item-product-quantity">Quantity: ${quantity}</div>
+                <div class="main__order-item-product-price">${parseFloat(price).toFixed(2)} ₸</div>
             </div>
         `;
     });
@@ -446,13 +491,15 @@ function renderOrderItems(items) {
 }
 
 function renderOrderActions(order) {
-    if (order.status === 'completed' || order.status === 'cancelled') {
+    const status = order.status || order.Status || 'unknown';
+    
+    if (status === 'completed' || status === 'cancelled') {
         return '';
     }
     
     return `
         <div class="main__order-item-actions">
-            ${order.status === 'pending' ? `
+            ${status === 'pending' ? `
                 <button class="main__order-item-button complete" data-status="completed">Complete</button>
                 <button class="main__order-item-button cancel" data-status="cancelled">Cancel</button>
             ` : ''}
@@ -462,26 +509,35 @@ function renderOrderActions(order) {
 
 async function updateOrderStatus(orderId, status) {
     try {
-        const response = await fetch(`/api/orders/${orderId}`, {
+        console.log(`Updating order ${orderId} status to ${status}`);
+        
+        const response = await fetch(`http://localhost:8093/api/orders/${orderId}`, {
             method: 'PATCH',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Origin': window.location.origin
             },
             body: JSON.stringify({ status })
         });
         
         if (!response.ok) {
-            throw new Error(`Error updating order: ${response.statusText}`);
+            const errorText = await response.text();
+            throw new Error(`Error updating order: ${errorText}`);
         }
+        
+        console.log("Order status updated successfully");
         
         fetchOrders();
         
         if (status === 'cancelled') {
             fetchProducts();
         }
+        
+        alert(`Order status updated to ${getStatusText(status)}`);
     } catch (error) {
-        console.error('Error updating order:', error);
-        alert(error.message);
+        console.error('Error updating order status:', error);
+        alert(`Failed to update order: ${error.message}`);
     }
 }
 

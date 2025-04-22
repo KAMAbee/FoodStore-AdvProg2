@@ -1,20 +1,9 @@
 package domain
 
 type Product struct {
-    ID         string
-    Name       string
-    Price      float64
-    Stock      int
+    ID    string  `json:"id"`
+    Name  string  `json:"name"`
+    Price float64 `json:"price"`
+    Stock int32   `json:"stock"`
 }
 
-
-type FilterParams struct {
-    Name     string
-    MinPrice float64
-    MaxPrice float64
-}
-
-type PaginationParams struct {
-    Page    int
-    PerPage int
-}

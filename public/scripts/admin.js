@@ -8,10 +8,12 @@ document
     const productStock = parseInt(document.querySelector('input[name="productStock"]').value);
 
     try {
-      const response = await fetch("/api/products", {
+      const response = await fetch("http://localhost:8082/api/products", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Origin": window.location.origin
         },
         body: JSON.stringify({
           Name: productName,
@@ -32,40 +34,61 @@ document
     }
   });
 
-// Pagination state
 let currentPage = 1;
 const perPage = 5; 
 
-async function fetchProducts(page = currentPage) {
+async function fetchProducts(page = currentPage, filters = {}) {
   try {
-    const url = new URL("/api/products", window.location.origin);
+    const url = new URL("/api/products", "http://localhost:8082");
     url.searchParams.append("page", page);
     url.searchParams.append("per_page", perPage);
 
-    const response = await fetch(url);
+    if (filters.minPrice) {
+      url.searchParams.append("min_price", filters.minPrice);
+    }
+    if (filters.maxPrice) {
+      url.searchParams.append("max_price", filters.maxPrice);
+    }
+
+    const response = await fetch(url, {
+      headers: {
+        "Accept": "application/json",
+        "Origin": window.location.origin
+      }
+    });
+    
     if (!response.ok) {
       throw new Error(`Failed to fetch products: ${response.statusText}`);
     }
+    
     const data = await response.json();
 
     const productsList = document.getElementById("products-list");
     productsList.innerHTML = "";
 
+    if (!data.products || data.products.length === 0) {
+      productsList.innerHTML = '<div>No products</div>';
+      return;
+    }
+
     data.products.forEach((product) => {
+      const id = product.ID || product.id || "";
+      const name = product.Name || product.name || "Unnamed";
+      const price = product.Price !== undefined ? product.Price : 
+                    product.price !== undefined ? product.price : 0;
+      const stock = product.Stock !== undefined ? product.Stock : 
+                    product.stock !== undefined ? product.stock : 0;
+
       const productItem = document.createElement("div");
       productItem.className = "main__products-item";
       productItem.innerHTML = `
         <div class="main__products-item-wrap">
-          <div class="main__products-item-name">${product.Name}</div>
-          <button class="main__products-item-edit" onclick="editProduct('${product.ID}', '${product.Name}', ${
-            product.Price
-          }, ${product.Stock})">✏️</button>
-          <button class="main__products-item-delete" onclick="deleteProduct('${
-            product.ID
-          }')">❌</button>
+          <div class="main__products-item-name">${name}</div>
+          <button class="main__products-item-edit" onclick="editProduct('${id}', '${name}', ${price}, ${stock})">✏️</button>
+          <button class="main__products-item-delete" onclick="deleteProduct('${id}')">❌</button>
         </div>
-        <div class="main__products-item-price">${product.Price.toFixed(2)}₸</div>
-        <div class="main__products-item-stock">Stock: ${product.Stock}</div>
+        <div class="main__products-item-price">${parseFloat(price).toFixed(2)}₸</div>
+        <div class="main__products-item-stock">Stock: ${stock}</div>
       `;
       productsList.appendChild(productItem);
     });
@@ -74,6 +97,8 @@ async function fetchProducts(page = currentPage) {
 
   } catch (error) {
     console.error("Error fetching products:", error);
+    const productsList = document.getElementById("products-list");
+    productsList.innerHTML = `<div>Error: ${error.message}</div>`;
   }
 }
 
@@ -117,8 +142,12 @@ function updatePagination(total, currentPage, perPage) {
 
 async function deleteProduct(productId) {
   try {
-    const response = await fetch(`/api/products/${productId}`, {
+    const response = await fetch(`http://localhost:8082/api/products/${productId}`, {
       method: "DELETE",
+      headers: {
+        "Accept": "application/json",
+        "Origin": window.location.origin
+      }
     });
     if (response.ok) {
       fetchProducts(currentPage); 
@@ -152,17 +181,23 @@ async function submitUpdate(event, id) {
   event.preventDefault();
 
   const form = event.target;
+  
   const updatedProduct = {
     Name: form.Name.value,
     Price: parseFloat(form.Price.value),
     Stock: parseInt(form.Stock.value),
+    name: form.Name.value,
+    price: parseFloat(form.Price.value), 
+    stock: parseInt(form.Stock.value)
   };
 
   try {
-    const response = await fetch(`/api/products/${id}`, {
+    const response = await fetch(`http://localhost:8082/api/products/${id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Origin": window.location.origin
       },
       body: JSON.stringify(updatedProduct),
     });
@@ -188,49 +223,5 @@ document
 
     fetchProducts(1, { minPrice, maxPrice });
   });
-
-async function fetchProducts(page = currentPage, filters = {}) {
-  try {
-    const url = new URL("/api/products", window.location.origin);
-    url.searchParams.append("page", page);
-    url.searchParams.append("per_page", perPage);
-
-    if (filters.minPrice) url.searchParams.append("min_price", filters.minPrice);
-    if (filters.maxPrice) url.searchParams.append("max_price", filters.maxPrice);
-
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch products: ${response.statusText}`);
-    }
-    const data = await response.json();
-
-    const productsList = document.getElementById("products-list");
-    productsList.innerHTML = "";
-
-    data.products.forEach((product) => {
-      const productItem = document.createElement("div");
-      productItem.className = "main__products-item";
-      productItem.innerHTML = `
-        <div class="main__products-item-wrap">
-          <div class="main__products-item-name">${product.Name}</div>
-          <button class="main__products-item-edit" onclick="editProduct('${product.ID}', '${product.Name}', ${
-            product.Price
-          }, ${product.Stock})">✏️</button>
-          <button class="main__products-item-delete" onclick="deleteProduct('${
-            product.ID
-          }')">❌</button>
-        </div>
-        <div class="main__products-item-price">${product.Price.toFixed(2)}₸</div>
-        <div class="main__products-item-stock">Stock: ${product.Stock}</div>
-      `;
-      productsList.appendChild(productItem);
-    });
-
-    updatePagination(data.total, data.page, data.per_page);
-
-  } catch (error) {
-    console.error("Error fetching products:", error);
-  }
-}
 
 window.onload = () => fetchProducts(1);

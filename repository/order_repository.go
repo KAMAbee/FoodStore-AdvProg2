@@ -1,11 +1,13 @@
 package repository
 
-import "FoodStore-AdvProg2/domain"
+import (
+    "AdvProg2/domain"
+)
 
 type OrderRepository interface {
-	Save(order domain.Order, items []domain.OrderItem) (string, error)
-	FindByID(id string) (domain.Order, []domain.OrderItem, error)
-	UpdateStatus(id string, status string) error
-	FindByUserID(userID string) ([]domain.Order, error)
-	FindAll() ([]domain.Order, error)
+    Create(order *domain.Order) error
+    GetByID(id string) (*domain.Order, error)
+    GetByUserID(userID string, page, limit int32) ([]*domain.Order, int32, error)
+    UpdateStatus(id, status string) error
+    Delete(id string) error
 }

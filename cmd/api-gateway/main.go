@@ -1,108 +1,154 @@
 package main
 
 import (
-	"log"
-	"net/http"
-	"os"
-	"time"
+    "log"
+    "net/http"
+    "os"
+    "time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
+    "github.com/gin-gonic/gin"
 )
 
+func proxyToService(serviceURL string) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        if serviceURL == "" {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Service URL not configured"})
+            return
+        }
+
+        client := &http.Client{Timeout: 10 * time.Second}
+        targetURL := serviceURL + c.Request.URL.Path
+        if c.Request.URL.RawQuery != "" {
+            targetURL += "?" + c.Request.URL.RawQuery
+        }
+
+        req, err := http.NewRequest(c.Request.Method, targetURL, c.Request.Body)
+        if err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+            return
+        }
+
+        for key, values := range c.Request.Header {
+            for _, value := range values {
+                req.Header.Add(key, value)
+            }
+        }
+
+        if requestID, exists := c.Get("RequestID"); exists {
+            req.Header.Set("X-Request-ID", requestID.(string))
+        }
+
+        resp, err := client.Do(req)
+        if err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Service unavailable: " + err.Error()})
+            return
+        }
+        defer resp.Body.Close()
+
+        c.Status(resp.StatusCode)
+        for key, values := range resp.Header {
+            for _, value := range values {
+                c.Header(key, value)
+            }
+        }
+
+        c.DataFromReader(resp.StatusCode, resp.ContentLength, resp.Header.Get("Content-Type"), resp.Body, nil)
+    }
+}
+
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Printf("Warning: Error loading .env file: %s", err)
-	}
+    r := gin.New()
+    r.Use(gin.Recovery())
 
-	r := gin.Default()
+    r.Use(func(c *gin.Context) {
+        c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+        c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
+        c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 
-	r.Use(gin.Logger())
-	r.Use(gin.Recovery())
+        if c.Request.Method == "OPTIONS" {
+            c.AbortWithStatus(204)
+            return
+        }
 
-	r.Static("/static", "./public")
+        c.Next()
+    })
 
-	r.LoadHTMLGlob("public/*.html")
-	r.GET("/admin", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "admin.html", nil)
-	})
-	r.GET("/order", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "order.html", nil)
-	})
+    r.Static("/static", "./public")
+    r.LoadHTMLGlob("public/*.html")
 
-	inventoryAPI := r.Group("/api/products")
-	{
-		inventoryAPI.GET("", proxyToInventoryService)
-		inventoryAPI.GET("/:id", proxyToInventoryService)
-		inventoryAPI.POST("", proxyToInventoryService)
-		inventoryAPI.PUT("/:id", proxyToInventoryService)
-		inventoryAPI.DELETE("/:id", proxyToInventoryService)
-	}
+    r.GET("/", func(c *gin.Context) {
+        c.HTML(http.StatusOK, "order.html", nil)
+    })
+    r.GET("/admin", func(c *gin.Context) {
+        c.HTML(http.StatusOK, "admin.html", nil)
+    })
+    r.GET("/order", func(c *gin.Context) {
+        c.HTML(http.StatusOK, "order.html", nil)
+    })
+    r.GET("/login", func(c *gin.Context) {
+        c.HTML(http.StatusOK, "login.html", nil)
+    })
+    r.GET("/register", func(c *gin.Context) {
+        c.HTML(http.StatusOK, "register.html", nil)
+    })
+    r.GET("/profile", func(c *gin.Context) {
+        c.HTML(http.StatusOK, "profile.html", nil)
+    })
 
-	orderAPI := r.Group("/api/orders")
-	{
-		orderAPI.GET("", proxyToOrderService)
-		orderAPI.GET("/:id", proxyToOrderService)
-		orderAPI.POST("", proxyToOrderService)
-		orderAPI.PATCH("/:id", proxyToOrderService)
-	}
+    inventoryServiceURL := os.Getenv("INVENTORY_SERVICE_URL")
+    if inventoryServiceURL == "" {
+        inventoryServiceURL = "http://localhost:8082"
+    }
 
-	port := os.Getenv("API_GATEWAY_PORT")
-	if port == "" {
-		port = "8080"
-	}
+    r.GET("/api/health", func(c *gin.Context) {
+        c.JSON(http.StatusOK, gin.H{
+            "status": "up",
+            "time":   time.Now().Format(time.RFC3339),
+        })
+    })
 
-	log.Printf("API Gateway is starting on port %s...", port)
-	r.Run(":" + port)
-}
+    inventoryAPI := r.Group("/api/products")
+    {
+        inventoryAPI.GET("", proxyToService(inventoryServiceURL))
+        inventoryAPI.GET("/:id", proxyToService(inventoryServiceURL))
+        inventoryAPI.POST("", proxyToService(inventoryServiceURL))
+        inventoryAPI.PUT("/:id", proxyToService(inventoryServiceURL))
+        inventoryAPI.DELETE("/:id", proxyToService(inventoryServiceURL))
+    }
 
-func proxyToInventoryService(c *gin.Context) {
-	proxyRequest(c, os.Getenv("INVENTORY_SERVICE_URL"))
-}
+    orderServiceURL := os.Getenv("ORDER_SERVICE_URL")
+    if orderServiceURL == "" {
+        orderServiceURL = "http://localhost:8083"
+    }
 
-func proxyToOrderService(c *gin.Context) {
-	proxyRequest(c, os.Getenv("ORDER_SERVICE_URL"))
-}
+    orderAPI := r.Group("/api/orders")
+    {
+        orderAPI.GET("", proxyToService(orderServiceURL))
+        orderAPI.GET("/:id", proxyToService(orderServiceURL))
+        orderAPI.POST("", proxyToService(orderServiceURL))
+        orderAPI.PATCH("/:id", proxyToService(orderServiceURL))
+        orderAPI.DELETE("/:id", proxyToService(orderServiceURL))
+    }
 
-func proxyRequest(c *gin.Context, serviceURL string) {
-	if serviceURL == "" {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Service URL not configured"})
-		return
-	}
+    userServiceURL := os.Getenv("USER_SERVICE_URL")
+    if userServiceURL == "" {
+        userServiceURL = "http://localhost:8085"
+    }
 
-	client := &http.Client{Timeout: 10 * time.Second}
+    userAPI := r.Group("/api/users")
+    {
+        userAPI.POST("/register", proxyToService(userServiceURL))
+        userAPI.POST("/login", proxyToService(userServiceURL))
+        userAPI.GET("/:id", proxyToService(userServiceURL))
+    }
 
-	targetURL := serviceURL + c.Request.URL.Path
-	if c.Request.URL.RawQuery != "" {
-		targetURL += "?" + c.Request.URL.RawQuery
-	}
+    port := os.Getenv("API_GATEWAY_PORT")
+    if port == "" {
+        port = "8080"
+    }
 
-	req, err := http.NewRequest(c.Request.Method, targetURL, c.Request.Body)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	for key, values := range c.Request.Header {
-		for _, value := range values {
-			req.Header.Add(key, value)
-		}
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Service unavailable: " + err.Error()})
-		return
-	}
-	defer resp.Body.Close()
-
-	c.Status(resp.StatusCode)
-	for key, values := range resp.Header {
-		for _, value := range values {
-			c.Header(key, value)
-		}
-	}
-
-	c.DataFromReader(resp.StatusCode, resp.ContentLength, resp.Header.Get("Content-Type"), resp.Body, nil)
+    log.Printf("API Gateway starting on port %s", port)
+    if err := r.Run(":" + port); err != nil {
+        log.Fatalf("Failed to start API Gateway: %v", err)
+    }
 }

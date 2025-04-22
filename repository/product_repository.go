@@ -1,12 +1,15 @@
 package repository
 
-import "FoodStore-AdvProg2/domain"
+import "AdvProg2/domain"
 
 type ProductRepository interface {
-    Save(product domain.Product) error
-    FindByID(id string) (domain.Product, error)
-    Update(id string, product domain.Product) error
+    Create(product *domain.Product) error
+    GetByID(id string) (*domain.Product, error)
+    Update(product *domain.Product) error
     Delete(id string) error
-    FindAll() ([]domain.Product, error)
-    FindAllWithFilter(filter domain.FilterParams, pagination domain.PaginationParams, offset int) ([]domain.Product, int, error)
+    List(page, limit int32) ([]*domain.Product, int32, error)
+    
+    SearchByName(name string, page, limit int32) ([]*domain.Product, int32, error)
+    SearchByPriceRange(minPrice, maxPrice float64, page, limit int32) ([]*domain.Product, int32, error)
+    SearchByFilters(name string, minPrice, maxPrice float64, page, limit int32) ([]*domain.Product, int32, error)
 }

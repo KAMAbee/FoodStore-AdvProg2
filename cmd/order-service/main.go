@@ -1,109 +1,123 @@
 package main
 
 import (
-	"FoodStore-AdvProg2/domain"
-	"FoodStore-AdvProg2/infrastructure/postgres"
-	"FoodStore-AdvProg2/usecase"
-	"log"
-	"net/http"
-	"os"
-
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
+    "context"
+    "log"
+    "net"
+    "net/http"
+    "os"
+    "os/signal"
+    "syscall"
+    "time"
+    
+    db "AdvProg2/infrastructure/db"
+    grpcHandler "AdvProg2/handler/grpc"
+    httpHandler "AdvProg2/handler/http"
+    pb "AdvProg2/proto/order"
+    "AdvProg2/usecase"
+    
+    "github.com/gorilla/mux"
+    "github.com/joho/godotenv"
+    "google.golang.org/grpc"
+    "google.golang.org/grpc/reflection"
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Printf("Warning: Error loading .env file: %s", err)
-	}
-
-	dbHost := os.Getenv("DB")
-	if dbHost == "" {
-		log.Fatal("DB environment variable not set")
-	}
-	postgres.InitDB(dbHost)
-	log.Println("Connected to PostgreSQL")
-
-	if err := postgres.InitTables(); err != nil {
-		log.Fatalf("Failed to initialize tables: %v", err)
-	}
-
-	orderRepo := postgres.NewOrderPostgresRepo()
-	productRepo := postgres.NewProductPostgresRepo()
-	orderUC := usecase.NewOrderUseCase(orderRepo, productRepo)
-
-	r := gin.Default()
-
-	orders := r.Group("/api/orders")
-	{
-		orders.POST("", func(c *gin.Context) {
-			var orderReq domain.OrderRequest
-			if err := c.ShouldBindJSON(&orderReq); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
-				return
-			}
-
-			orderID, err := orderUC.CreateOrder(orderReq)
-			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-				return
-			}
-
-			c.JSON(http.StatusCreated, gin.H{"order_id": orderID})
-		})
-
-		orders.GET("", func(c *gin.Context) {
-			userID := c.Query("user_id")
-			var orders []domain.Order
-			var err error
-
-			if userID != "" {
-				orders, err = orderUC.GetOrdersByUserID(userID)
-			} else {
-				orders, err = orderUC.GetAllOrders()
-			}
-
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-
-			c.JSON(http.StatusOK, orders)
-		})
-
-		orders.GET("/:id", func(c *gin.Context) {
-			id := c.Param("id")
-			order, err := orderUC.GetOrderByID(id)
-			if err != nil {
-				c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
-				return
-			}
-			c.JSON(http.StatusOK, order)
-		})
-
-		orders.PATCH("/:id", func(c *gin.Context) {
-			id := c.Param("id")
-			var statusReq domain.OrderStatusUpdateRequest
-			if err := c.ShouldBindJSON(&statusReq); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
-				return
-			}
-
-			if err := orderUC.UpdateOrderStatus(id, statusReq.Status); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-				return
-			}
-
-			c.JSON(http.StatusOK, gin.H{"status": "updated"})
-		})
-	}
-
-	port := os.Getenv("ORDER_SERVICE_PORT")
-	if port == "" {
-		port = "8082"
-	}
-
-	log.Printf("Order Service is starting on port %s...", port)
-	r.Run(":" + port)
+    godotenv.Load()
+    
+    dbConn, err := db.NewPostgresConnection()
+    if err != nil {
+        log.Fatalf("Failed to connect to database: %v", err)
+    }
+    defer dbConn.Close()
+    
+    orderRepo := db.NewPostgresOrderRepository(dbConn)
+    productRepo := db.NewPostgresProductRepository(dbConn)
+    orderUseCase := usecase.NewOrderUseCase(orderRepo, productRepo)
+    
+    grpcOrderHandler := grpcHandler.NewOrderHandler(orderUseCase)
+    
+    grpcPort := os.Getenv("ORDER_SERVICE_PORT")
+    if grpcPort == "" {
+        grpcPort = "8083"
+    }
+    
+    lis, err := net.Listen("tcp", ":"+grpcPort)
+    if err != nil {
+        log.Fatalf("Failed to listen on port %s: %v", grpcPort, err)
+    }
+    
+    grpcServer := grpc.NewServer()
+    pb.RegisterOrderServiceServer(grpcServer, grpcOrderHandler)
+    
+    reflection.Register(grpcServer)
+    
+    go func() {
+        log.Printf("Order gRPC server started on port %s", grpcPort)
+        if err := grpcServer.Serve(lis); err != nil {
+            log.Fatalf("Failed to serve gRPC: %v", err)
+        }
+    }()
+    
+    httpPort := os.Getenv("ORDER_SERVICE_HTTP_PORT")
+    if httpPort == "" {
+        httpPort = "8093"
+    }
+    
+    orderHTTPHandler := httpHandler.NewOrderHTTPHandler(orderUseCase)
+    
+    router := mux.NewRouter()
+    
+    router.Use(func(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            w.Header().Set("Access-Control-Allow-Origin", "*")
+            w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
+            w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+            
+            if r.Method == "OPTIONS" {
+                w.WriteHeader(http.StatusOK)
+                return
+            }
+            
+            next.ServeHTTP(w, r)
+        })
+    })
+    
+    router.HandleFunc("/api/orders", orderHTTPHandler.CreateOrder).Methods("POST")
+    router.HandleFunc("/api/orders/{id}", orderHTTPHandler.GetOrder).Methods("GET")
+    router.HandleFunc("/api/orders", orderHTTPHandler.GetUserOrders).Methods("GET")
+    router.HandleFunc("/api/orders/{id}", orderHTTPHandler.UpdateOrderStatus).Methods("PATCH")
+    router.HandleFunc("/api/orders/{id}", orderHTTPHandler.CancelOrder).Methods("DELETE")
+    
+    router.HandleFunc("/api/orders", func(w http.ResponseWriter, r *http.Request) {
+        w.WriteHeader(http.StatusOK)
+    }).Methods("OPTIONS")
+    router.HandleFunc("/api/orders/{id}", func(w http.ResponseWriter, r *http.Request) {
+        w.WriteHeader(http.StatusOK)
+    }).Methods("OPTIONS")
+    
+    httpServer := &http.Server{
+        Addr:    ":" + httpPort,
+        Handler: router,
+    }
+    
+    go func() {
+        log.Printf("Order HTTP server started on port %s", httpPort)
+        if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+            log.Fatalf("Failed to serve HTTP: %v", err)
+        }
+    }()
+    
+    quit := make(chan os.Signal, 1)
+    signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+    <-quit
+    
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+    
+    if err := httpServer.Shutdown(ctx); err != nil {
+        log.Fatalf("HTTP server shutdown error: %v", err)
+    }
+    
+    grpcServer.GracefulStop()
 }
