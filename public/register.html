@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register</title>
+
+    <link rel="stylesheet" href="static/styles/register.css">
+</head>
+<body>
+    <header class="header">
+        <h1 class="header__title">Register</h1>
+    </header>
+
+    <main class="main">
+        <form id="register-form" class="main__form">
+            <div class="main__form-wrap">
+                <label for="username" class="main__form-label">Username</label>
+                <input type="text" id="username" name="username" class="main__form-input" required>
+            </div>
+
+            <div class="main__form-wrap">
+                <label for="password" class="main__form-label">Password</label>
+                <input type="text" id="password" name="password" class="main__form-input" required>
+            </div>
+
+            <div class="main__form-wrap">
+                <label for="confirm-password" class="main__form-label">Repeat Password</label>
+                <input type="text" id="confirm-password" name="confirm-password" class="main__form-input" required>
+            </div>
+
+            <div id="register-message" class="main__message"></div>
+
+            <button class="main__form-submit">Register</button>
+        </form>
+
+        <a href="/login" class="main__text">Have account? Log in</a>
+    </main>
+
+    <script src="/static/scripts/register.js"></script>
+</body>
+</html>

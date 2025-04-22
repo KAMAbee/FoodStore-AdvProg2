@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package user;
+option go_package = "./pb";
+
+service UserService {
+  rpc Register(RegisterRequest) returns (UserResponse) {}
+  rpc Login(LoginRequest) returns (UserResponse) {}
+  rpc GetProfile(GetProfileRequest) returns (UserResponse) {}
+}
+
+message RegisterRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message GetProfileRequest {
+  string id = 1;
+}
+
+message UserResponse {
+  string id = 1;
+  string username = 2;
+}

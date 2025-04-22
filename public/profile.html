@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile</title>
+
+    <link rel="stylesheet" href="/static/styles/profile.css">
+</head>
+
+<body>
+    <header class="header">
+        <h1 class="header__title">
+            Profile
+        </h1>
+        <nav class="header__nav">
+            <a href="/order" class="header__nav-link">Order</a>
+            <a href="/admin" class="header__nav-link ">Admin Panel</a>
+            <a href="/profile" class="header__nav-link active">Profile</a>
+        </nav>
+    </header>
+
+    <main class="main">
+        <div class="main__profile">
+            <div class="main__profile-wrap">
+                <div class="main__profile-label">User ID:
+                    <div id="user-id-display" class="main__profile-label-value"></div>
+                </div>
+
+                <div class="main__profile-label">Username: 
+                    <div id="username-display" class="main__profile-label-value"></div>
+                </div>
+            </div>
+
+
+            <button id="logout-button" class="main__profile-logout">Logout</button>
+        </div>
+    </main>
+
+    <script src="/static/scripts/profile.js"></script>
+</body>
+
+</html>

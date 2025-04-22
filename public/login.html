@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+
+    <link rel="stylesheet" href="static/styles/login.css">
+</head>
+<body>
+    <header class="header">
+        <h1 class="header__title">Login</h1>
+    </header>
+
+    <main class="main">
+        <form id="" class="main__form">
+            <div class="main__form-wrap">
+                <label for="username" class="main__form-label">Username</label>
+                <input type="text" id="username" name="username" class="main__form-input" required>
+            </div>
+
+            <div class="main__form-wrap">
+                <label for="password" class="main__form-label">Password</label>
+                <input type="text" id="password" name="password" class="main__form-input" required>
+            </div>
+
+            <div id="login-message" class="main__message"></div>
+
+            <button class="main__form-submit">Login</button>
+        </form>
+
+        <a href="/register" class="main__text">No account? Register</a>
+    </main>
+
+    <script src="/static/scripts/login.js"></script>
+</body>
+</html>
