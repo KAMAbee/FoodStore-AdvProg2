@@ -173,6 +173,7 @@ type UserResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
+	Token         string                 `protobuf:"bytes,3,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -221,6 +222,13 @@ func (x *UserResponse) GetUsername() string {
 	return ""
 }
 
+func (x *UserResponse) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
 var File_proto_user_user_proto protoreflect.FileDescriptor
 
 const file_proto_user_user_proto_rawDesc = "" +
@@ -233,10 +241,11 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\"#\n" +
 	"\x11GetProfileRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\":\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"P\n" +
 	"\fUserResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
-	"\busername\x18\x02 \x01(\tR\busername2\xb6\x01\n" +
+	"\busername\x18\x02 \x01(\tR\busername\x12\x14\n" +
+	"\x05token\x18\x03 \x01(\tR\x05token2\xb6\x01\n" +
 	"\vUserService\x127\n" +
 	"\bRegister\x12\x15.user.RegisterRequest\x1a\x12.user.UserResponse\"\x00\x121\n" +
 	"\x05Login\x12\x12.user.LoginRequest\x1a\x12.user.UserResponse\"\x00\x12;\n" +

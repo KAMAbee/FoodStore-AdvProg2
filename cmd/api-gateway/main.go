@@ -5,8 +5,9 @@ import (
     "net/http"
     "os"
     "time"
-
     "github.com/gin-gonic/gin"
+
+    "AdvProg2/middleware"
 )
 
 func proxyToService(serviceURL string) gin.HandlerFunc {
@@ -76,6 +77,15 @@ func main() {
     r.Static("/static", "./public")
     r.LoadHTMLGlob("public/*.html")
 
+    r.GET("/login", func(c *gin.Context) {
+        c.HTML(http.StatusOK, "login.html", nil)
+    })
+    r.GET("/register", func(c *gin.Context) {
+        c.HTML(http.StatusOK, "register.html", nil)
+    })
+
+    r.Use(middleware.AuthMiddleware())
+
     r.GET("/", func(c *gin.Context) {
         c.HTML(http.StatusOK, "order.html", nil)
     })
@@ -84,12 +94,6 @@ func main() {
     })
     r.GET("/order", func(c *gin.Context) {
         c.HTML(http.StatusOK, "order.html", nil)
-    })
-    r.GET("/login", func(c *gin.Context) {
-        c.HTML(http.StatusOK, "login.html", nil)
-    })
-    r.GET("/register", func(c *gin.Context) {
-        c.HTML(http.StatusOK, "register.html", nil)
     })
     r.GET("/profile", func(c *gin.Context) {
         c.HTML(http.StatusOK, "profile.html", nil)

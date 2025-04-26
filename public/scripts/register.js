@@ -2,6 +2,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const registerForm = document.getElementById('register-form');
     const registerMessage = document.getElementById('register-message');
 
+    const token = localStorage.getItem('token');
+    if (token) {
+        window.location.href = '/profile';
+        return;
+    }
+
     if (registerForm) {
         registerForm.addEventListener('submit', function(e) {
             e.preventDefault();
@@ -48,7 +54,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({ username, password })
             })
             .then(response => {
-                    if (!response.ok) {
+                if (!response.ok) {
                     return response.json().then(errorData => {
                         console.error("Server error details:", errorData);
                         
@@ -71,12 +77,11 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 console.log("Registration successful:", data);
                 
-                localStorage.setItem('userId', data.id);
-                localStorage.setItem('username', data.username);
+                localStorage.setItem('userId', data.user.id);
+                localStorage.setItem('username', data.user.username);
+                localStorage.setItem('token', data.token);
                 
-                setTimeout(() => {
-                    window.location.href = '/profile';
-                }, 1000);
+                window.location.href = '/profile';
             })
             .catch(error => {
                 console.error("Registration error:", error);

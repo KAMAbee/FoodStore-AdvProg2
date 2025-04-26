@@ -384,6 +384,12 @@ async function fetchOrders() {
         return;
     }
     
+    const token = localStorage.getItem('token');
+    if (!token) {
+        window.location.href = '/login';
+        return;
+    }
+    
     try {
         const url = new URL('/api/orders', 'http://localhost:8093');
         url.searchParams.append('user_id', userId);
@@ -393,9 +399,18 @@ async function fetchOrders() {
         const response = await fetch(url, {
             headers: {
                 'Accept': 'application/json',
-                'Origin': window.location.origin
+                'Origin': window.location.origin,
+                'Authorization': `Bearer ${token}`
             }
         });
+        
+        if (response.status === 401 || response.status === 403) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('userId');
+            localStorage.removeItem('username');
+            window.location.href = '/login';
+            return;
+        }
         
         if (!response.ok) {
             throw new Error(`Error fetching orders: ${response.statusText}`);

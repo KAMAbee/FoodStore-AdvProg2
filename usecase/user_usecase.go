@@ -7,6 +7,7 @@ import (
     "golang.org/x/crypto/bcrypt"
     
     "AdvProg2/domain"
+    "AdvProg2/pkg/auth"
     "AdvProg2/repository"
 )
 
@@ -35,7 +36,12 @@ func checkPasswordHash(password, hash string) bool {
     return err == nil
 }
 
-func (uc *UserUseCase) Register(username, password string) (*domain.User, error) {
+type AuthResponse struct {
+    User  *domain.User `json:"user"`
+    Token string       `json:"token"`
+}
+
+func (uc *UserUseCase) Register(username, password string) (*AuthResponse, error) {
     if username == "" {
         return nil, errors.New("username is required")
     }
@@ -66,12 +72,21 @@ func (uc *UserUseCase) Register(username, password string) (*domain.User, error)
         return nil, err
     }
 
+    token, err := auth.GenerateToken(user.ID, user.Username)
+    if err != nil {
+        return nil, err
+    }
+
     userResponse := *user
     userResponse.Password = ""
-    return &userResponse, nil
+    
+    return &AuthResponse{
+        User:  &userResponse,
+        Token: token,
+    }, nil
 }
 
-func (uc *UserUseCase) Login(username, password string) (*domain.User, error) {
+func (uc *UserUseCase) Login(username, password string) (*AuthResponse, error) {
     if username == "" || password == "" {
         return nil, repository.ErrInvalidCredentials
     }
@@ -88,9 +103,18 @@ func (uc *UserUseCase) Login(username, password string) (*domain.User, error) {
         return nil, repository.ErrInvalidCredentials
     }
 
+    token, err := auth.GenerateToken(user.ID, user.Username)
+    if err != nil {
+        return nil, err
+    }
+
     userResponse := *user
     userResponse.Password = ""
-    return &userResponse, nil
+    
+    return &AuthResponse{
+        User:  &userResponse,
+        Token: token,
+    }, nil
 }
 
 func (uc *UserUseCase) GetProfile(id string) (*domain.User, error) {

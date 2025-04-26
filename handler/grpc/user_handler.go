@@ -27,7 +27,7 @@ func (h *UserHandler) Register(ctx context.Context, req *pb.RegisterRequest) (*p
         return nil, status.Error(codes.InvalidArgument, "username and password are required")
     }
 
-    user, err := h.userUseCase.Register(req.Username, req.Password)
+    authResponse, err := h.userUseCase.Register(req.Username, req.Password)
     if err != nil {
         if err == repository.ErrUsernameAlreadyExists {
             return nil, status.Error(codes.AlreadyExists, "username already exists")
@@ -36,8 +36,9 @@ func (h *UserHandler) Register(ctx context.Context, req *pb.RegisterRequest) (*p
     }
 
     return &pb.UserResponse{
-        Id:       user.ID,
-        Username: user.Username,
+        Id:       authResponse.User.ID,
+        Username: authResponse.User.Username,
+        Token:    authResponse.Token,
     }, nil
 }
 
@@ -46,7 +47,7 @@ func (h *UserHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.User
         return nil, status.Error(codes.InvalidArgument, "username and password are required")
     }
 
-    user, err := h.userUseCase.Login(req.Username, req.Password)
+    authResponse, err := h.userUseCase.Login(req.Username, req.Password)
     if err != nil {
         if err == repository.ErrInvalidCredentials {
             return nil, status.Error(codes.Unauthenticated, "invalid credentials")
@@ -55,8 +56,9 @@ func (h *UserHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.User
     }
 
     return &pb.UserResponse{
-        Id:       user.ID,
-        Username: user.Username,
+        Id:       authResponse.User.ID,
+        Username: authResponse.User.Username,
+        Token:    authResponse.Token,
     }, nil
 }
 

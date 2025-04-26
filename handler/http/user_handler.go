@@ -2,6 +2,7 @@ package grpc
 
 import (
     "encoding/json"
+    "log"
     "net/http"
 
     "github.com/gorilla/mux"
@@ -29,12 +30,16 @@ func (h *UserHTTPHandler) Register(w http.ResponseWriter, r *http.Request) {
     }
 
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        log.Printf("Error decoding register request: %v", err)
         http.Error(w, "Invalid request body", http.StatusBadRequest)
         return
     }
 
-    user, err := h.userUseCase.Register(req.Username, req.Password)
+    log.Printf("Register request for username: %s", req.Username)
+
+    authResponse, err := h.userUseCase.Register(req.Username, req.Password)
     if err != nil {
+        log.Printf("Register error: %v", err)
         if err == repository.ErrUsernameAlreadyExists {
             http.Error(w, "Username already exists", http.StatusConflict)
             return
@@ -43,8 +48,20 @@ func (h *UserHTTPHandler) Register(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    log.Printf("User registered successfully: %s", req.Username)
+
+    http.SetCookie(w, &http.Cookie{
+        Name:     "auth_token",
+        Value:    authResponse.Token,
+        Path:     "/",
+        HttpOnly: false,  // Allow JS to access it
+        MaxAge:   86400,  // 1 day
+        SameSite: http.SameSiteLaxMode,
+    })
+
     w.WriteHeader(http.StatusCreated)
-    json.NewEncoder(w).Encode(user)
+    json.NewEncoder(w).Encode(authResponse)
+
 }
 
 func (h *UserHTTPHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -56,12 +73,16 @@ func (h *UserHTTPHandler) Login(w http.ResponseWriter, r *http.Request) {
     }
 
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        log.Printf("Error decoding login request: %v", err)
         http.Error(w, "Invalid request body", http.StatusBadRequest)
         return
     }
 
-    user, err := h.userUseCase.Login(req.Username, req.Password)
+    log.Printf("Login request for username: %s", req.Username)
+
+    authResponse, err := h.userUseCase.Login(req.Username, req.Password)
     if err != nil {
+        log.Printf("Login error: %v", err)
         if err == repository.ErrInvalidCredentials {
             http.Error(w, "Invalid credentials", http.StatusUnauthorized)
             return
@@ -70,7 +91,18 @@ func (h *UserHTTPHandler) Login(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    json.NewEncoder(w).Encode(user)
+    log.Printf("User logged in successfully: %s", req.Username)
+
+    http.SetCookie(w, &http.Cookie{
+        Name:     "auth_token",
+        Value:    authResponse.Token,
+        Path:     "/",
+        HttpOnly: false, 
+        MaxAge:   86400,
+        SameSite: http.SameSiteLaxMode,
+    })
+
+    json.NewEncoder(w).Encode(authResponse)
 }
 
 func (h *UserHTTPHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
@@ -79,8 +111,11 @@ func (h *UserHTTPHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
     userID := vars["id"]
 
+    log.Printf("GetProfile request for user ID: %s", userID)
+
     user, err := h.userUseCase.GetProfile(userID)
     if err != nil {
+        log.Printf("GetProfile error: %v", err)
         if err == repository.ErrUserNotFound {
             http.Error(w, "User not found", http.StatusNotFound)
             return
