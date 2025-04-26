@@ -12,6 +12,7 @@ service UserService {
 message RegisterRequest {
   string username = 1;
   string password = 2;
+  string role = 3;
 }
 
 message LoginRequest {
@@ -27,4 +28,5 @@ message UserResponse {
   string id = 1;
   string username = 2;
   string token = 3;
+  string role = 4;
 }

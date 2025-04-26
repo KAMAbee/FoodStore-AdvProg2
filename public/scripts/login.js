@@ -83,6 +83,7 @@ document.addEventListener("DOMContentLoaded", function () {
           localStorage.setItem("userId", data.user.id);
           localStorage.setItem("username", data.user.username);
           localStorage.setItem("token", token);
+          localStorage.setItem("userRole", data.user.role || "user");
 
           document.cookie = `auth_token=${token};path=/;max-age=86400`;
 

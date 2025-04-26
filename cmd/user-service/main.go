@@ -31,7 +31,11 @@ func main() {
     }
     defer dbConn.Close()
 
-    userRepo := db.NewPostgresUserRepository(dbConn)
+    userRepo, err := db.NewPostgresUserRepository(dbConn)
+    if err != nil {
+        log.Fatalf("Failed to create user repository: %v", err)
+    }
+    
     userUseCase := usecase.NewUserUseCase(userRepo)
 
     grpcUserHandler := grpcHandler.NewUserHandler(userUseCase)
@@ -66,7 +70,7 @@ func main() {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
             w.Header().Set("Access-Control-Allow-Origin", "*")
             w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-            w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+            w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
             if r.Method == "OPTIONS" {
                 w.WriteHeader(http.StatusOK)
@@ -120,5 +124,4 @@ func main() {
     }
 
     grpcServer.GracefulStop()
-
 }

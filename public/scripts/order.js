@@ -35,6 +35,8 @@ const DOM = {
     ordersList: document.getElementById('orders-list')
 };
 
+
+
 document.addEventListener('DOMContentLoaded', () => {
     fetchProducts();
 
@@ -57,6 +59,16 @@ document.addEventListener('DOMContentLoaded', () => {
         state.userId = savedUserId;
         updateCheckoutButton();
         fetchOrders();
+    }
+    
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const userRole = localStorage.getItem('userRole') || 'user';
+    const adminLink = document.getElementById('admin-link');
+    
+    if (userRole !== 'admin' && adminLink) {
+        adminLink.style.display = 'none';
     }
 });
 

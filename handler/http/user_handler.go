@@ -27,6 +27,7 @@ func (h *UserHTTPHandler) Register(w http.ResponseWriter, r *http.Request) {
     var req struct {
         Username string `json:"username"`
         Password string `json:"password"`
+        Role     string `json:"role"`
     }
 
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -35,9 +36,13 @@ func (h *UserHTTPHandler) Register(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    log.Printf("Register request for username: %s", req.Username)
+    log.Printf("Register request for username: %s with role: %s", req.Username, req.Role)
 
-    authResponse, err := h.userUseCase.Register(req.Username, req.Password)
+    if req.Role == "" {
+        req.Role = "user"
+    }
+
+    authResponse, err := h.userUseCase.Register(req.Username, req.Password, req.Role)
     if err != nil {
         log.Printf("Register error: %v", err)
         if err == repository.ErrUsernameAlreadyExists {
@@ -48,20 +53,19 @@ func (h *UserHTTPHandler) Register(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    log.Printf("User registered successfully: %s", req.Username)
+    log.Printf("User registered successfully: %s with role: %s", req.Username, authResponse.User.Role)
 
     http.SetCookie(w, &http.Cookie{
         Name:     "auth_token",
         Value:    authResponse.Token,
         Path:     "/",
-        HttpOnly: false,  // Allow JS to access it
-        MaxAge:   86400,  // 1 day
+        HttpOnly: false,
+        MaxAge:   86400,
         SameSite: http.SameSiteLaxMode,
     })
 
     w.WriteHeader(http.StatusCreated)
     json.NewEncoder(w).Encode(authResponse)
-
 }
 
 func (h *UserHTTPHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +95,7 @@ func (h *UserHTTPHandler) Login(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    log.Printf("User logged in successfully: %s", req.Username)
+    log.Printf("User logged in successfully: %s with role: %s", req.Username, authResponse.User.Role)
 
     http.SetCookie(w, &http.Cookie{
         Name:     "auth_token",

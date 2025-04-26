@@ -27,7 +27,7 @@ func (h *UserHandler) Register(ctx context.Context, req *pb.RegisterRequest) (*p
         return nil, status.Error(codes.InvalidArgument, "username and password are required")
     }
 
-    authResponse, err := h.userUseCase.Register(req.Username, req.Password)
+    authResponse, err := h.userUseCase.Register(req.Username, req.Password, req.Role)
     if err != nil {
         if err == repository.ErrUsernameAlreadyExists {
             return nil, status.Error(codes.AlreadyExists, "username already exists")
@@ -39,6 +39,7 @@ func (h *UserHandler) Register(ctx context.Context, req *pb.RegisterRequest) (*p
         Id:       authResponse.User.ID,
         Username: authResponse.User.Username,
         Token:    authResponse.Token,
+        Role:     authResponse.User.Role,
     }, nil
 }
 
@@ -59,6 +60,7 @@ func (h *UserHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.User
         Id:       authResponse.User.ID,
         Username: authResponse.User.Username,
         Token:    authResponse.Token,
+        Role:     authResponse.User.Role,
     }, nil
 }
 
@@ -78,5 +80,6 @@ func (h *UserHandler) GetProfile(ctx context.Context, req *pb.GetProfileRequest)
     return &pb.UserResponse{
         Id:       user.ID,
         Username: user.Username,
+        Role:     user.Role,
     }, nil
 }

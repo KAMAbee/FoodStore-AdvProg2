@@ -2,10 +2,8 @@ package db
 
 import (
     "database/sql"
-    "fmt"
-
+    
     "github.com/google/uuid"
-    _ "github.com/lib/pq"
     
     "AdvProg2/domain"
     "AdvProg2/repository"
@@ -16,7 +14,8 @@ func createUserTableIfNotExist(db *sql.DB) error {
     CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(36) PRIMARY KEY,
         username VARCHAR(255) NOT NULL UNIQUE,
-        password VARCHAR(255) NOT NULL
+        password VARCHAR(255) NOT NULL,
+        role VARCHAR(50) NOT NULL DEFAULT 'user'
     );
     `
 
@@ -28,15 +27,14 @@ type PostgresUserRepository struct {
     db *sql.DB
 }
 
-func NewPostgresUserRepository(db *sql.DB) repository.UserRepository {
-    err := createUserTableIfNotExist(db)
-    if err != nil {
-        panic(fmt.Sprintf("Failed to create users table: %v", err))
+func NewPostgresUserRepository(db *sql.DB) (*PostgresUserRepository, error) {
+    if err := createUserTableIfNotExist(db); err != nil {
+        return nil, err
     }
 
     return &PostgresUserRepository{
         db: db,
-    }
+    }, nil
 }
 
 func (r *PostgresUserRepository) Create(user *domain.User) error {
@@ -53,19 +51,23 @@ func (r *PostgresUserRepository) Create(user *domain.User) error {
     if user.ID == "" {
         user.ID = uuid.New().String()
     }
+    
+    if user.Role == "" {
+        user.Role = "user"
+    }
 
     query := `
-        INSERT INTO users (id, username, password) 
-        VALUES ($1, $2, $3)
+        INSERT INTO users (id, username, password, role) 
+        VALUES ($1, $2, $3, $4)
     `
 
-    _, err = r.db.Exec(query, user.ID, user.Username, user.Password)
+    _, err = r.db.Exec(query, user.ID, user.Username, user.Password, user.Role)
     return err
 }
 
 func (r *PostgresUserRepository) GetByID(id string) (*domain.User, error) {
     query := `
-        SELECT id, username, password 
+        SELECT id, username, password, role
         FROM users 
         WHERE id = $1
     `
@@ -75,6 +77,7 @@ func (r *PostgresUserRepository) GetByID(id string) (*domain.User, error) {
         &user.ID,
         &user.Username,
         &user.Password,
+        &user.Role,
     )
 
     if err != nil {
@@ -89,7 +92,7 @@ func (r *PostgresUserRepository) GetByID(id string) (*domain.User, error) {
 
 func (r *PostgresUserRepository) GetByUsername(username string) (*domain.User, error) {
     query := `
-        SELECT id, username, password 
+        SELECT id, username, password, role
         FROM users 
         WHERE username = $1
     `
@@ -99,6 +102,7 @@ func (r *PostgresUserRepository) GetByUsername(username string) (*domain.User, e
         &user.ID,
         &user.Username,
         &user.Password,
+        &user.Role,
     )
 
     if err != nil {

@@ -41,12 +41,20 @@ type AuthResponse struct {
     Token string       `json:"token"`
 }
 
-func (uc *UserUseCase) Register(username, password string) (*AuthResponse, error) {
+func (uc *UserUseCase) Register(username, password string, role string) (*AuthResponse, error) {
     if username == "" {
         return nil, errors.New("username is required")
     }
     if len(password) < minPasswordLength {
         return nil, errors.New("password must be at least 6 characters long")
+    }
+
+    if role != "" && role != "admin" && role != "user" {
+        return nil, errors.New("role must be either 'admin' or 'user'")
+    }
+    
+    if role == "" {
+        role = "user"
     }
 
     _, err := uc.userRepo.GetByUsername(username)
@@ -65,6 +73,7 @@ func (uc *UserUseCase) Register(username, password string) (*AuthResponse, error
         ID:       uuid.New().String(),
         Username: username,
         Password: hashedPassword,
+        Role:     role,
     }
 
     err = uc.userRepo.Create(user)
@@ -72,7 +81,7 @@ func (uc *UserUseCase) Register(username, password string) (*AuthResponse, error
         return nil, err
     }
 
-    token, err := auth.GenerateToken(user.ID, user.Username)
+    token, err := auth.GenerateToken(user.ID, user.Username, user.Role)
     if err != nil {
         return nil, err
     }
@@ -103,7 +112,7 @@ func (uc *UserUseCase) Login(username, password string) (*AuthResponse, error) {
         return nil, repository.ErrInvalidCredentials
     }
 
-    token, err := auth.GenerateToken(user.ID, user.Username)
+    token, err := auth.GenerateToken(user.ID, user.Username, user.Role)
     if err != nil {
         return nil, err
     }

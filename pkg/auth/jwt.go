@@ -3,7 +3,6 @@ package auth
 import (
     "errors"
     "fmt"
-    "log"
     "os"
     "strings"
     "time"
@@ -27,15 +26,17 @@ func init() {
 type Claims struct {
     UserID   string `json:"user_id"`
     Username string `json:"username"`
+    Role     string `json:"role"`
     jwt.RegisteredClaims
 }
 
-func GenerateToken(userID, username string) (string, error) {
+func GenerateToken(userID, username, role string) (string, error) {
     expirationTime := time.Now().Add(24 * time.Hour)
     
     claims := &Claims{
         UserID:   userID,
         Username: username,
+        Role:     role,
         RegisteredClaims: jwt.RegisteredClaims{
             ExpiresAt: jwt.NewNumericDate(expirationTime),
             IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -48,10 +49,6 @@ func GenerateToken(userID, username string) (string, error) {
 
 func ValidateToken(tokenString string) (*Claims, error) {
     tokenString = strings.TrimSpace(tokenString)
-    
-    if len(tokenString) > 10 {
-        log.Printf("Token prefix: %s...", tokenString[:10])
-    }
     
     claims := &Claims{}
     
