@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"errors"
+
 	"github.com/google/uuid"
 
 	"AdvProg2/domain"
@@ -9,25 +10,22 @@ import (
 )
 
 type ProductUseCase struct {
-	productRepo repository.ProductRepository
+	productRepo    repository.ProductRepository
+	messageUseCase *MessageUseCase
 }
 
-func (uc *ProductUseCase) SearchByPriceRange(minPrice float64, maxPrice float64, i int32, param4 int32) ([]*domain.Product, int32, error) {
-	panic("unimplemented")
-}
-
-func NewProductUseCase(productRepo repository.ProductRepository) *ProductUseCase {
+func NewProductUseCase(productRepo repository.ProductRepository, messageUseCase *MessageUseCase) *ProductUseCase {
 	return &ProductUseCase{
-		productRepo: productRepo,
+		productRepo:    productRepo,
+		messageUseCase: messageUseCase,
 	}
 }
-
-
 
 func (uc *ProductUseCase) GetProduct(id string) (*domain.Product, error) {
 	if id == "" {
 		return nil, errors.New("product ID cannot be empty")
 	}
+
 	return uc.productRepo.GetByID(id)
 }
 
@@ -35,9 +33,11 @@ func (uc *ProductUseCase) ListProducts(page, limit int32) ([]*domain.Product, in
 	if page <= 0 {
 		page = 1
 	}
+
 	if limit <= 0 {
 		limit = 10
 	}
+
 	return uc.productRepo.List(page, limit)
 }
 
@@ -45,21 +45,24 @@ func (uc *ProductUseCase) CreateProduct(name string, price float64, stock int32)
 	if name == "" {
 		return nil, errors.New("product name cannot be empty")
 	}
+
 	if price < 0 {
-		return nil, errors.New("product price cannot be negative")
+		return nil, errors.New("price cannot be negative")
 	}
+
 	if stock < 0 {
-		return nil, errors.New("product stock cannot be negative")
+		return nil, errors.New("stock cannot be negative")
 	}
 
 	product := &domain.Product{
-		ID:    uuid.New().String(),
-		Name:  name,
-		Price: price,
-		Stock: stock,
+		ID:        uuid.New().String(),
+		Name:      name,
+		Price:     price,
+		Stock:     stock,
 	}
 
-	if err := uc.productRepo.Create(product); err != nil {
+	err := uc.productRepo.Create(product)
+	if err != nil {
 		return nil, err
 	}
 
@@ -71,26 +74,30 @@ func (uc *ProductUseCase) UpdateProduct(id, name string, price float64, stock in
 		return nil, errors.New("product ID cannot be empty")
 	}
 
-	existingProduct, err := uc.productRepo.GetByID(id)
+	product, err := uc.productRepo.GetByID(id)
 	if err != nil {
 		return nil, err
 	}
 
 	if name != "" {
-		existingProduct.Name = name
-	}
-	if price >= 0 {
-		existingProduct.Price = price
-	}
-	if stock >= 0 {
-		existingProduct.Stock = stock
+		product.Name = name
 	}
 
-	if err := uc.productRepo.Update(existingProduct); err != nil {
+	if price >= 0 {
+		product.Price = price
+	}
+
+	if stock >= 0 {
+		product.Stock = stock
+	}
+
+
+	err = uc.productRepo.Update(product)
+	if err != nil {
 		return nil, err
 	}
 
-	return existingProduct, nil
+	return product, nil
 }
 
 func (uc *ProductUseCase) DeleteProduct(id string) error {
@@ -98,6 +105,7 @@ func (uc *ProductUseCase) DeleteProduct(id string) error {
 		return errors.New("product ID cannot be empty")
 	}
 
+	// Check if product exists
 	_, err := uc.productRepo.GetByID(id)
 	if err != nil {
 		return err
@@ -106,26 +114,24 @@ func (uc *ProductUseCase) DeleteProduct(id string) error {
 	return uc.productRepo.Delete(id)
 }
 
-func (uc *ProductUseCase) SearchProducts(name string, minPrice, maxPrice float64, page, limit int32) ([]*domain.Product, int32, error) {
+func (uc *ProductUseCase) SearchByPriceRange(minPrice float64, maxPrice float64, page int32, limit int32) ([]*domain.Product, int32, error) {
 	if page <= 0 {
 		page = 1
 	}
+
 	if limit <= 0 {
 		limit = 10
 	}
 
-	if name != "" && (minPrice > 0 || maxPrice > 0) {
-		return uc.productRepo.SearchByFilters(name, minPrice, maxPrice, page, limit)
+	filters := make(map[string]interface{})
+
+	if minPrice > 0 {
+		filters["min_price"] = minPrice
 	}
 
-	if name != "" {
-		return uc.productRepo.SearchByName(name, page, limit)
-	}
-
-	if minPrice > 0 || maxPrice > 0 {
-		return uc.productRepo.SearchByPriceRange(minPrice, maxPrice, page, limit)
+	if maxPrice > 0 {
+		filters["max_price"] = maxPrice
 	}
 
 	return uc.productRepo.List(page, limit)
 }
-

@@ -8,23 +8,26 @@ document
     const productStock = parseInt(document.querySelector('input[name="productStock"]').value);
 
     try {
-      const response = await fetch("http://localhost:8082/api/products", {
+      // Change this URL to point to the admin endpoint
+      const response = await fetch("http://localhost:8085/api/admin/products", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "Origin": window.location.origin
+          "Origin": window.location.origin,
+          "X-User-Role": "admin"  // Add the admin role header
         },
         body: JSON.stringify({
-          Name: productName,
-          Price: productPrice,
-          Stock: productStock,
+          name: productName,      // Use lowercase field names to match Go struct
+          price: productPrice,
+          stock: productStock,
         }),
       });
 
       if (response.ok) {
         document.getElementById("addProduct-form").reset();
         fetchProducts(1); 
+        console.log("Product created successfully via admin API");
       } else {
         const error = await response.text();
         alert(`Failed to add product: ${error}`);
@@ -142,14 +145,17 @@ function updatePagination(total, currentPage, perPage) {
 
 async function deleteProduct(productId) {
   try {
-    const response = await fetch(`http://localhost:8082/api/products/${productId}`, {
+    // Change from product service to admin API endpoint
+    const response = await fetch(`http://localhost:8085/api/admin/products/${productId}`, {
       method: "DELETE",
       headers: {
         "Accept": "application/json",
-        "Origin": window.location.origin
+        "Origin": window.location.origin,
+        "X-User-Role": "admin"  // Add admin role header
       }
     });
     if (response.ok) {
+      console.log("Product deleted successfully via admin API");
       fetchProducts(currentPage); 
     } else {
       console.error("Error deleting product:", response.statusText);
@@ -182,27 +188,28 @@ async function submitUpdate(event, id) {
 
   const form = event.target;
   
+  // Simplify the product data structure - use only lowercase properties
   const updatedProduct = {
-    Name: form.Name.value,
-    Price: parseFloat(form.Price.value),
-    Stock: parseInt(form.Stock.value),
     name: form.Name.value,
-    price: parseFloat(form.Price.value), 
+    price: parseFloat(form.Price.value),
     stock: parseInt(form.Stock.value)
   };
 
   try {
-    const response = await fetch(`http://localhost:8082/api/products/${id}`, {
+    // Change from product service to admin API endpoint
+    const response = await fetch(`http://localhost:8085/api/admin/products/${id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "Origin": window.location.origin
+        "Origin": window.location.origin,
+        "X-User-Role": "admin"  // Add admin role header
       },
       body: JSON.stringify(updatedProduct),
     });
 
     if (response.ok) {
+      console.log("Product updated successfully via admin API");
       fetchProducts(currentPage);
     } else {
       const error = await response.text();
