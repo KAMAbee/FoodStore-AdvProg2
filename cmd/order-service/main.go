@@ -17,7 +17,7 @@ import (
 	pb "AdvProg2/proto/order"
 	"AdvProg2/repository"
 	"AdvProg2/usecase"
-
+	"AdvProg2/domain"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	"github.com/nats-io/nats.go"
@@ -48,6 +48,7 @@ func main() {
 
 	var messageProducer repository.MessageProducer
 	var messageUseCase *usecase.MessageUseCase
+	var messageConsumer *messaging.NatsConsumer
 
 	nc, err := messaging.NewNatsConnection(natsURL)
 	if err != nil {
@@ -55,9 +56,11 @@ func main() {
 		log.Println("Order service will run without messaging capabilities")
 	} else {
 		messageProducer = messaging.NewNatsProducer(nc)
+		messageConsumer = messaging.NewNatsConsumer(nc)
 		log.Println("Connected to NATS messaging system")
 		defer nc.Close()
 		defer messageProducer.Close()
+		defer messageConsumer.Close()
 	}
 
 	orderRepo := db.NewPostgresOrderRepository(dbConn)
@@ -67,6 +70,19 @@ func main() {
 	if messageProducer != nil {
 		messageUseCase = usecase.NewMessageUseCase(messageProducer, productRepo)
 		log.Println("Initialized message use case")
+	}
+
+	// Subscribe to product.created events
+	if messageConsumer != nil {
+		err = messageConsumer.SubscribeToProductCreated(func(event domain.ProductCreatedEvent) error {
+			log.Printf("Processed product.created event: ProductID=%s, Name=%s, Price=%.2f, Stock=%d",
+				event.ProductID, event.Name, event.Price, event.Stock)
+			// Здесь можно добавить логику, например, обновить кэш продуктов в productRepo
+			return nil
+		})
+		if err != nil {
+			log.Printf("Failed to subscribe to product.created: %v", err)
+		}
 	}
 
 	orderUseCase := usecase.NewOrderUseCase(orderRepo, productRepo, messageUseCase)

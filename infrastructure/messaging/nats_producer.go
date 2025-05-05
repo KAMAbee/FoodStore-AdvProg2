@@ -52,6 +52,38 @@ func (p *NatsProducer) PublishOrderCreated(event domain.OrderCreatedEvent) error
     return nil
 }
 
+func (p *NatsProducer) PublishProductCreated(event domain.ProductCreatedEvent) error {
+    subject := "product.created"
+    
+    data, err := json.Marshal(event)
+    if err != nil {
+        log.Printf("Error marshalling product created event: %v", err)
+        return err
+    }
+
+    message := domain.Message{
+        ID:        uuid.New().String(),
+        Type:      "product.created",
+        Data:      data,
+        CreatedAt: time.Now(),
+    }
+
+    msgBytes, err := json.Marshal(message)
+    if err != nil {
+        log.Printf("Error marshalling message: %v", err)
+        return err
+    }
+
+    err = p.nc.Publish(subject, msgBytes)
+    if err != nil {
+        log.Printf("Error publishing message: %v", err)
+        return err
+    }
+
+    log.Printf("Published product.created event for product %s", event.ProductID)
+    return nil
+}
+
 func (p *NatsProducer) Close() error {
     p.nc.Close()
     return nil

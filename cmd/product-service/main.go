@@ -15,21 +15,26 @@ import (
     db "AdvProg2/infrastructure/db"
     grpcHandler "AdvProg2/handler/grpc"
     "AdvProg2/domain"
+    "AdvProg2/infrastructure/messaging"
     pb "AdvProg2/proto/product"
     "AdvProg2/usecase"
     
     "github.com/gorilla/mux"
+    "github.com/joho/godotenv"
+    "github.com/nats-io/nats.go"
     "google.golang.org/grpc"
     "google.golang.org/grpc/reflection"
 )
 
 type ProductHTTPHandler struct {
     productUseCase *usecase.ProductUseCase
+    messageProducer messaging.MessageProducer
 }
 
-func NewProductHTTPHandler(productUseCase *usecase.ProductUseCase) *ProductHTTPHandler {
+func NewProductHTTPHandler(productUseCase *usecase.ProductUseCase, messageProducer messaging.MessageProducer) *ProductHTTPHandler {
     return &ProductHTTPHandler{
         productUseCase: productUseCase,
+        messageProducer: messageProducer,
     }
 }
 
@@ -119,6 +124,20 @@ func (h *ProductHTTPHandler) CreateProduct(w http.ResponseWriter, r *http.Reques
         return
     }
     
+    // Publish ProductCreatedEvent
+    if h.messageProducer != nil {
+        event := domain.ProductCreatedEvent{
+            ProductID: createdProduct.ID,
+            Name:      createdProduct.Name,
+            Price:     createdProduct.Price,
+            Stock:     createdProduct.Stock,
+            CreatedAt: time.Now(),
+        }
+        if err := h.messageProducer.PublishProductCreated(event); err != nil {
+            log.Printf("Failed to publish product.created event: %v", err)
+        }
+    }
+    
     w.WriteHeader(http.StatusCreated)
     json.NewEncoder(w).Encode(createdProduct)
 }
@@ -157,8 +176,12 @@ func (h *ProductHTTPHandler) DeleteProduct(w http.ResponseWriter, r *http.Reques
     w.WriteHeader(http.StatusNoContent)
 }
 
-
 func main() {
+    err := godotenv.Load()
+    if err != nil {
+        log.Printf("Warning: Error loading .env file: %v", err)
+    }
+
     dbConn, err := db.NewPostgresConnection()
     if err != nil {
         log.Fatalf("Failed to connect to database: %v", err)
@@ -167,6 +190,24 @@ func main() {
     
     productRepo := db.NewPostgresProductRepository(dbConn)
     productUseCase := usecase.NewProductUseCase(productRepo)
+    
+    // Connect to NATS
+    natsURL := os.Getenv("NATS_URL")
+    if natsURL == "" {
+        natsURL = nats.DefaultURL
+    }
+
+    var messageProducer messaging.MessageProducer
+    nc, err := messaging.NewNatsConnection(natsURL)
+    if err != nil {
+        log.Printf("Warning: Failed to connect to NATS: %v", err)
+        log.Println("Product service will run without messaging capabilities")
+    } else {
+        messageProducer = messaging.NewNatsProducer(nc)
+        log.Println("Connected to NATS messaging system")
+        defer nc.Close()
+        defer messageProducer.Close()
+    }
     
     grpcProductHandler := grpcHandler.NewProductHandler(productUseCase)
     
@@ -197,7 +238,7 @@ func main() {
         httpPort = "8082"
     }
 
-    productHTTPHandler := NewProductHTTPHandler(productUseCase)
+    productHTTPHandler := NewProductHTTPHandler(productUseCase, messageProducer)
     
     router := mux.NewRouter()
     
@@ -215,7 +256,6 @@ func main() {
             next.ServeHTTP(w, r)
         })
     })
-    
     
     router.HandleFunc("/api/products", productHTTPHandler.GetProducts).Methods("GET")
     router.HandleFunc("/api/products/{id}", productHTTPHandler.GetProduct).Methods("GET")

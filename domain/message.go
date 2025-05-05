@@ -10,15 +10,23 @@ type Message struct {
 }
 
 type OrderCreatedEvent struct {
-    OrderID    string    `json:"order_id"`
-    UserID     string    `json:"user_id"`
-    TotalPrice float64   `json:"total_price"`
+    OrderID    string           `json:"order_id"`
+    UserID     string           `json:"user_id"`
+    TotalPrice float64          `json:"total_price"`
     Items      []OrderItemEvent `json:"items"`
-    CreatedAt  time.Time `json:"created_at"`
+    CreatedAt  time.Time        `json:"created_at"`
 }
 
 type OrderItemEvent struct {
     ProductID string  `json:"product_id"`
     Quantity  int32   `json:"quantity"`
     Price     float64 `json:"price"`
+}
+
+type ProductCreatedEvent struct {
+    ProductID string  `json:"product_id"`
+    Name      string  `json:"name"`
+    Price     float64 `json:"price"`
+    Stock     int32   `json:"stock"`
+    CreatedAt time.Time `json:"created_at"`
 }
