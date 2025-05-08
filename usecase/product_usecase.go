@@ -1,23 +1,28 @@
 package usecase
 
 import (
+	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 
 	"AdvProg2/domain"
+	"AdvProg2/pkg/cache"
 	"AdvProg2/repository"
 )
 
 type ProductUseCase struct {
 	productRepo    repository.ProductRepository
 	messageUseCase *MessageUseCase
+	cache          *cache.Cache
 }
 
 func NewProductUseCase(productRepo repository.ProductRepository, messageUseCase *MessageUseCase) *ProductUseCase {
 	return &ProductUseCase{
 		productRepo:    productRepo,
 		messageUseCase: messageUseCase,
+		cache:          cache.New(),
 	}
 }
 
@@ -26,7 +31,55 @@ func (uc *ProductUseCase) GetProduct(id string) (*domain.Product, error) {
 		return nil, errors.New("product ID cannot be empty")
 	}
 
-	return uc.productRepo.GetByID(id)
+	cacheKey := "product:" + id
+	if cachedData, found := uc.cache.Get(cacheKey); found {
+		if product, ok := cachedData.(*domain.Product); ok {
+			return product, nil
+		}
+
+		if jsonMap, ok := cachedData.(map[string]interface{}); ok {
+			product := &domain.Product{ID: id}
+
+			if name, ok := jsonMap["Name"]; ok && name != nil {
+				if nameStr, ok := name.(string); ok {
+					product.Name = nameStr
+				}
+			}
+
+			if price, ok := jsonMap["Price"]; ok && price != nil {
+				if priceFloat, ok := price.(float64); ok {
+					product.Price = priceFloat
+				}
+			}
+
+			if stock, ok := jsonMap["Stock"]; ok && stock != nil {
+				if stockFloat, ok := stock.(float64); ok {
+					product.Stock = int32(stockFloat)
+				}
+			}
+
+			return product, nil
+		}
+
+		jsonData, err := json.Marshal(cachedData)
+		if err == nil {
+			var product domain.Product
+			if err = json.Unmarshal(jsonData, &product); err == nil {
+				return &product, nil
+			}
+		}
+
+		uc.cache.Delete(cacheKey)
+	}
+
+	product, err := uc.productRepo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	uc.cache.Set(cacheKey, product, 5*time.Minute)
+
+	return product, nil
 }
 
 func (uc *ProductUseCase) ListProducts(page, limit int32) ([]*domain.Product, int32, error) {
@@ -55,16 +108,20 @@ func (uc *ProductUseCase) CreateProduct(name string, price float64, stock int32)
 	}
 
 	product := &domain.Product{
-		ID:        uuid.New().String(),
-		Name:      name,
-		Price:     price,
-		Stock:     stock,
+		ID:    uuid.New().String(),
+		Name:  name,
+		Price: price,
+		Stock: stock,
 	}
 
 	err := uc.productRepo.Create(product)
 	if err != nil {
 		return nil, err
 	}
+
+	// Add to cache
+	cacheKey := "product:" + product.ID
+	uc.cache.Set(cacheKey, product, 5*time.Minute)
 
 	return product, nil
 }
@@ -91,11 +148,13 @@ func (uc *ProductUseCase) UpdateProduct(id, name string, price float64, stock in
 		product.Stock = stock
 	}
 
-
 	err = uc.productRepo.Update(product)
 	if err != nil {
 		return nil, err
 	}
+
+	cacheKey := "product:" + id
+	uc.cache.Set(cacheKey, product, 5*time.Minute)
 
 	return product, nil
 }
@@ -105,16 +164,28 @@ func (uc *ProductUseCase) DeleteProduct(id string) error {
 		return errors.New("product ID cannot be empty")
 	}
 
-	// Check if product exists
 	_, err := uc.productRepo.GetByID(id)
 	if err != nil {
 		return err
 	}
 
-	return uc.productRepo.Delete(id)
+	err = uc.productRepo.Delete(id)
+	if err != nil {
+		return err
+	}
+
+	// Remove from cache
+	cacheKey := "product:" + id
+	uc.cache.Delete(cacheKey)
+
+	return nil
 }
 
-func (uc *ProductUseCase) SearchByPriceRange(minPrice float64, maxPrice float64, page int32, limit int32) ([]*domain.Product, int32, error) {
+func (uc *ProductUseCase) SearchByName(name string, page, limit int32) ([]*domain.Product, int32, error) {
+	return uc.productRepo.SearchByName(name, page, limit)
+}
+
+func (uc *ProductUseCase) SearchByPriceRange(minPrice, maxPrice float64, page, limit int32) ([]*domain.Product, int32, error) {
 	if page <= 0 {
 		page = 1
 	}
@@ -133,5 +204,5 @@ func (uc *ProductUseCase) SearchByPriceRange(minPrice float64, maxPrice float64,
 		filters["max_price"] = maxPrice
 	}
 
-	return uc.productRepo.List(page, limit)
+	return uc.productRepo.SearchByPriceRange(minPrice, maxPrice, page, limit)
 }
