@@ -11,6 +11,7 @@ import (
 	"github.com/nats-io/nats.go"
 
 	"AdvProg2/domain"
+	"AdvProg2/pkg/cache"
 	"AdvProg2/infrastructure/db"
 	"AdvProg2/infrastructure/messaging"
 	"AdvProg2/usecase"
@@ -48,11 +49,13 @@ func main() {
 	}
 	defer nc.Close()
 	log.Println("Connected to NATS messaging system")
-
 	consumer := messaging.NewNatsConsumer(nc)
 	defer consumer.Close()
+	
+	producer := messaging.NewNatsProducer(nc)
+	cacheInstance := cache.New()
 
-	messageUseCase := usecase.NewMessageUseCase(nil, productRepo)
+	messageUseCase := usecase.NewMessageUseCase(producer, productRepo, cacheInstance)
 
 	err = consumer.SubscribeToProductCreated(func(event domain.ProductCreatedEvent) error {
 		log.Printf("Admin consumer: received product created event for product %s", event.ProductID)

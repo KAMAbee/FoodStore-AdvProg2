@@ -20,6 +20,7 @@ import (
 
 	"AdvProg2/domain"
 	grpcHandler "AdvProg2/handler/grpc"
+	"AdvProg2/pkg/cache"
 	"AdvProg2/infrastructure/db"
 	"AdvProg2/infrastructure/messaging"
 	pb "AdvProg2/proto/product"
@@ -177,6 +178,9 @@ func main() {
 
 	productRepo := db.NewPostgresProductRepository(dbConn)
 
+	// Add this near your other initializations:
+	productCache := cache.New()
+
 	// Connect to NATS
 	natsURL := os.Getenv("NATS_URL")
 	if natsURL == "" {
@@ -191,9 +195,8 @@ func main() {
 		log.Println("Product service will run without messaging capabilities")
 	} else {
 		consumer := messaging.NewNatsConsumer(nc)
-		messageUseCase = usecase.NewMessageUseCase(nil, productRepo) // nil producer since we only consume
+		messageUseCase = usecase.NewMessageUseCase(nil, productRepo, productCache)
 
-		// Subscribe to product events from admin users
 		log.Println("Subscribing to product.created")
 		err = consumer.SubscribeToProductCreated(func(event domain.ProductCreatedEvent) error {
 			log.Printf("Received product.created event for product %s", event.ProductID)
@@ -215,7 +218,6 @@ func main() {
 			log.Printf("Admin user updated product %s (%s) to price $%.2f and stock %d",
 				event.ProductID, event.Name, event.Price, event.Stock)
 
-			// You could log database updates here if desired
 			result := messageUseCase.HandleProductUpdatedEvent(event)
 			if result == nil {
 				log.Printf("Successfully processed product.updated event for %s", event.ProductID)
@@ -235,7 +237,6 @@ func main() {
 			log.Printf("Admin user deleted product %s at %s",
 				event.ProductID, event.DeletedAt.Format(time.RFC3339))
 
-			// You could log database cleanup here if desired
 			result := messageUseCase.HandleProductDeletedEvent(event)
 			if result == nil {
 				log.Printf("Successfully processed product.deleted event for %s", event.ProductID)

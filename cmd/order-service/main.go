@@ -14,6 +14,7 @@ import (
 	httpHandler "AdvProg2/handler/http"
 	db "AdvProg2/infrastructure/db"
 	"AdvProg2/infrastructure/messaging"
+	"AdvProg2/pkg/cache"
 	pb "AdvProg2/proto/order"
 	"AdvProg2/repository"
 	"AdvProg2/usecase"
@@ -65,10 +66,10 @@ func main() {
 
 	orderRepo := db.NewPostgresOrderRepository(dbConn)
 	productRepo := db.NewPostgresProductRepository(dbConn)
-
 	// Create message use case only if we have a producer
 	if messageProducer != nil {
-		messageUseCase = usecase.NewMessageUseCase(messageProducer, productRepo)
+		cacheInstance := cache.New()
+		messageUseCase = usecase.NewMessageUseCase(messageProducer, productRepo, cacheInstance)
 		log.Println("Initialized message use case")
 	}
 
@@ -77,7 +78,6 @@ func main() {
 		err = messageConsumer.SubscribeToProductCreated(func(event domain.ProductCreatedEvent) error {
 			log.Printf("Processed product.created event: ProductID=%s, Name=%s, Price=%.2f, Stock=%d",
 				event.ProductID, event.Name, event.Price, event.Stock)
-			// Здесь можно добавить логику, например, обновить кэш продуктов в productRepo
 			return nil
 		})
 		if err != nil {

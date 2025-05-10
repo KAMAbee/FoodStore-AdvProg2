@@ -6,18 +6,21 @@ import (
 	"time"
 
 	"AdvProg2/domain"
+	"AdvProg2/pkg/cache"
 	"AdvProg2/repository"
 )
 
 type MessageUseCase struct {
 	producer    repository.MessageProducer
 	productRepo repository.ProductRepository
+	cache       *cache.Cache
 }
 
-func NewMessageUseCase(producer repository.MessageProducer, productRepo repository.ProductRepository) *MessageUseCase {
+func NewMessageUseCase(producer repository.MessageProducer, productRepo repository.ProductRepository, cache *cache.Cache) *MessageUseCase {
 	return &MessageUseCase{
 		producer:    producer,
 		productRepo: productRepo,
+		cache:       cache,
 	}
 }
 
@@ -26,7 +29,7 @@ func (uc *MessageUseCase) PublishOrderCreatedEvent(order *domain.Order) error {
 		return errors.New("message producer not configured")
 	}
 
-	// Create order items for the event
+	// Create order items 
 	itemEvents := make([]domain.OrderItemEvent, 0, len(order.Items))
 	for _, item := range order.Items {
 		itemEvents = append(itemEvents, domain.OrderItemEvent{
@@ -156,13 +159,19 @@ func (uc *MessageUseCase) HandleProductUpdatedEvent(event domain.ProductUpdatedE
 	log.Printf("Product updated: %s, New price: $%.2f, New stock: %d, Updated at: %s",
 		event.Name, event.Price, event.Stock, event.UpdatedAt.Format(time.RFC3339))
 
-	// Update any caches or other services that need to know about product updates
-	_, err := uc.productRepo.GetByID(event.ProductID)
+	product, err := uc.productRepo.GetByID(event.ProductID)
 	if err != nil {
 		log.Printf("Warning: Failed to find product %s in repository after update event: %v",
 			event.ProductID, err)
 	} else {
 		log.Printf("Confirmed product %s exists in database after update", event.ProductID)
+
+		// Update cache
+		if uc.cache != nil {
+			cacheKey := "product:" + event.ProductID
+			uc.cache.Set(cacheKey, product, 5*time.Minute)
+			log.Printf("Cache updated for product %s", event.ProductID)
+		}
 	}
 
 	return nil
@@ -173,7 +182,6 @@ func (uc *MessageUseCase) HandleProductDeletedEvent(event domain.ProductDeletedE
 	log.Printf("Product %s was deleted at %s",
 		event.ProductID, event.DeletedAt.Format(time.RFC3339))
 
-	// Check if product was actually deleted from database
 	_, err := uc.productRepo.GetByID(event.ProductID)
 	if err != nil {
 		log.Printf("Confirmed product %s no longer exists in database after deletion",
@@ -181,6 +189,12 @@ func (uc *MessageUseCase) HandleProductDeletedEvent(event domain.ProductDeletedE
 	} else {
 		log.Printf("Warning: Product %s still exists in repository after delete event",
 			event.ProductID)
+	}
+
+	if uc.cache != nil {
+		cacheKey := "product:" + event.ProductID
+		uc.cache.Delete(cacheKey)
+		log.Printf("Cache invalidated for product %s", event.ProductID)
 	}
 
 	return nil

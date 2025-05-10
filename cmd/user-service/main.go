@@ -18,6 +18,7 @@ import (
 
 	grpcHandler "AdvProg2/handler/grpc"
 	httpHandler "AdvProg2/handler/http"
+	"AdvProg2/pkg/cache"
 	"AdvProg2/infrastructure/db"
 	"AdvProg2/infrastructure/messaging"
 	pb "AdvProg2/proto/user"
@@ -55,9 +56,11 @@ func main() {
 	if natsURL == "" {
 		natsURL = nats.DefaultURL
 	}
-
 	var messageProducer repository.MessageProducer
 	var messageUseCase *usecase.MessageUseCase
+
+	// Initialize cache
+	cacheInstance := cache.New()
 
 	nc, err := messaging.NewNatsConnection(natsURL)
 	if err != nil {
@@ -65,13 +68,12 @@ func main() {
 		log.Println("User service will run without messaging capabilities")
 	} else {
 		messageProducer = messaging.NewNatsProducer(nc)
-		messageUseCase = usecase.NewMessageUseCase(messageProducer, productRepo)
+		messageUseCase = usecase.NewMessageUseCase(messageProducer, productRepo, cacheInstance)
 		log.Println("Connected to NATS messaging system")
 		defer nc.Close()
 		defer messageProducer.Close()
 	}
 
-	// Create use cases
 	userUseCase := usecase.NewUserUseCase(userRepo)
 	productUseCase := usecase.NewProductUseCase(productRepo, messageUseCase)
 	log.Println("Initialized use cases")

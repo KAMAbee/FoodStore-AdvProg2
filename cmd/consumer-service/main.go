@@ -1,18 +1,19 @@
 package main
 
 import (
-	"log"
-	"os"
-	"os/signal"
-	"syscall"
+    "log"
+    "os"
+    "os/signal"
+    "syscall"
 
-	"github.com/joho/godotenv"
-	"github.com/nats-io/nats.go"
+    "github.com/joho/godotenv"
+    "github.com/nats-io/nats.go"
 
-	"AdvProg2/domain"
-	"AdvProg2/infrastructure/db"
-	"AdvProg2/infrastructure/messaging"
-	"AdvProg2/usecase"
+    "AdvProg2/domain"
+    "AdvProg2/pkg/cache"
+    "AdvProg2/infrastructure/db"
+    "AdvProg2/infrastructure/messaging"
+    "AdvProg2/usecase"
 )
 
 func main() {
@@ -43,11 +44,15 @@ func main() {
         log.Fatalf("Failed to connect to NATS: %v", err)
     }
     defer nc.Close()
-
     consumer := messaging.NewNatsConsumer(nc)
     defer consumer.Close()
+    
+    producer := messaging.NewNatsProducer(nc)
+    
+    // Initialize cache
+    cacheInstance := cache.New()
 
-    messageUseCase := usecase.NewMessageUseCase(nil, productRepo)
+    messageUseCase := usecase.NewMessageUseCase(producer, productRepo, cacheInstance)
 
     err = consumer.SubscribeToOrderCreated(func(event domain.OrderCreatedEvent) error {
         return messageUseCase.HandleOrderCreatedEvent(event)
