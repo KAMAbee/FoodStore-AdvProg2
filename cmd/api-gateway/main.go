@@ -101,10 +101,6 @@ func main() {
     
     cacheClient := cache.New()
     log.Printf("Cache initialized")
-    
-    
-    
-    
     productCacheInvalidator := func(c *gin.Context, resp *http.Response) bool {
         method := c.Request.Method
         path := c.Request.URL.Path
@@ -197,9 +193,6 @@ func main() {
                     
                     if json.Unmarshal(body, &statusUpdate) == nil {
                         if status, ok := statusUpdate["status"].(string); ok && (status == "completed" || status == "cancelled") {
-                            
-                            
-                            
                             cacheClient.Delete("products:list")
                             log.Printf("Order %s status changed to %s, invalidated products cache", orderID, status)
                         }
@@ -272,7 +265,7 @@ func main() {
 
     inventoryServiceURL := os.Getenv("INVENTORY_SERVICE_URL")
     if inventoryServiceURL == "" {
-        inventoryServiceURL = "http:
+        inventoryServiceURL = "http://localhost:8082"
     }
 
     r.GET("/api/health", func(c *gin.Context) {
@@ -293,7 +286,7 @@ func main() {
 
     orderServiceURL := os.Getenv("ORDER_SERVICE_URL")
     if orderServiceURL == "" {
-        orderServiceURL = "http:
+        orderServiceURL = "http://localhost:8083"
     }
 
     orderAPI := r.Group("/api/orders")
@@ -307,7 +300,7 @@ func main() {
 
     userServiceURL := os.Getenv("USER_SERVICE_URL")
     if userServiceURL == "" {
-        userServiceURL = "http:
+        userServiceURL = "http://localhost:8085"
     }
 
     userAPI := r.Group("/api/users")
@@ -322,7 +315,7 @@ func main() {
     
     adminServiceURL := os.Getenv("ADMIN_SERVICE_URL")
     if adminServiceURL == "" {
-        adminServiceURL = "http:
+        adminServiceURL = "http://localhost:8085"
     }
 
     adminAPI := r.Group("/api/admin")
