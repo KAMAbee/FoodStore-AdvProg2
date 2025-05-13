@@ -70,16 +70,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     })
     .catch(error => {
-        console.error('Profile loading error:', error);
-        
-        if (loadingElement) loadingElement.style.display = 'none';
-        
-        if (errorMessage) {
-            errorMessage.textContent = error.message || 'Error loading profile';
-            errorMessage.style.display = 'block';
-        }
-        
-        if (profileContent) profileContent.style.display = 'block';
+
     });
 
     if (logoutButton) {

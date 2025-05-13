@@ -126,7 +126,7 @@ func (c *NatsConsumer) SubscribeToProductUpdated(handler func(event domain.Produ
 
 		log.Printf("NATS Consumer: Successfully parsed product.updated event for product %s (%s)",
 			event.ProductID, event.Name)
-		log.Printf("NATS Consumer: Product details: Price=$%.2f, Stock=%d, Updated at %s",
+		log.Printf("NATS Consumer: Product details: Price=%.2f, Stock=%d, Updated at %s",
 			event.Price, event.Stock, event.UpdatedAt.Format(time.RFC3339))
 
 		if err := handler(event); err != nil {
@@ -163,7 +163,6 @@ func (c *NatsConsumer) SubscribeToProductDeleted(handler func(event domain.Produ
 		log.Printf("NATS Consumer: Message envelope parsed: ID=%s, Type=%s",
 			message.ID, message.Type)
 
-		// Use message.Data directly as it's already []byte
 		eventData := message.Data
 		log.Printf("NATS Consumer: Using message data as bytes")
 
