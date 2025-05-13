@@ -1,82 +1,64 @@
-
-
-
-
-
-
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' 
 
-echo -e "${YELLOW}Начинаем тестирование инвалидации кэша...${NC}"
-
+echo -e "${YELLOW}Starting cache invalidation testing...${NC}"
 
 API_URL="http://localhost:8080"
 
-
 get_auth_token() {
-    echo -e "${YELLOW}Авторизуемся в системе...${NC}"
-    
+    echo -e "${YELLOW}Authenticating in the system...${NC}"
     
     LOGIN_DATA='{"email":"test@example.com","password":"password123"}'
-    
     
     LOGIN_RESPONSE=$(curl -s -X POST "${API_URL}/api/users/login" \
         -H "Content-Type: application/json" \
         -d "${LOGIN_DATA}")
     
-    
     TOKEN=$(echo "${LOGIN_RESPONSE}" | grep -o '"token":"[^"]*' | sed 's/"token":"//')
     
     if [ -z "$TOKEN" ]; then
-        echo -e "${RED}Ошибка авторизации. Проверьте логин и пароль.${NC}"
-        echo "Ответ: ${LOGIN_RESPONSE}"
+        echo -e "${RED}Authentication error. Check login and password.${NC}"
+        echo "Response: ${LOGIN_RESPONSE}"
         exit 1
     fi
     
-    echo -e "${GREEN}Успешно получен токен авторизации.${NC}"
+    echo -e "${GREEN}Authentication token successfully obtained.${NC}"
     echo "$TOKEN"
 }
 
-
 AUTH_TOKEN=$(get_auth_token)
 
-
 check_cache_stats() {
-    echo -e "${YELLOW}Проверяем состояние кэша...${NC}"
+    echo -e "${YELLOW}Checking cache status...${NC}"
     
     CACHE_STATS=$(curl -s -X GET "${API_URL}/api/debug/cache-stats" \
         -H "Authorization: Bearer ${AUTH_TOKEN}")
     
-    echo "Статистика кэша: ${CACHE_STATS}"
-    
+    echo "Cache statistics: ${CACHE_STATS}"
     
     if echo "${CACHE_STATS}" | grep -q "$1"; then
-        echo -e "${YELLOW}Ключ '$1' найден в кэше.${NC}"
+        echo -e "${YELLOW}Key '$1' found in cache.${NC}"
         return 0 
     else
-        echo -e "${YELLOW}Ключ '$1' не найден в кэше.${NC}"
+        echo -e "${YELLOW}Key '$1' not found in cache.${NC}"
         return 1 
     fi
 }
 
-
 test_product_cache_invalidation() {
-    echo -e "\n${YELLOW}=== Тест 1: Инвалидация кэша при обновлении продукта ===${NC}"
+    echo -e "\n${YELLOW}=== Test 1: Cache invalidation when updating a product ===${NC}"
     
+    echo -e "${YELLOW}Creating test product...${NC}"
     
-    echo -e "${YELLOW}Создаем тестовый продукт...${NC}"
-    
-    
-    PRODUCT_DATA='{"name":"Тестовый продукт","price":100,"stock":10}'
+    PRODUCT_DATA='{"name":"Test Product","price":100,"stock":10}'
     
     CREATE_RESPONSE=$(curl -s -X POST "${API_URL}/api/products" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer ${AUTH_TOKEN}" \
         -H "X-User-Role: admin" \
         -d "${PRODUCT_DATA}")
-    
     
     PRODUCT_ID=$(echo "${CREATE_RESPONSE}" | grep -o '"id":"[^"]*' | sed 's/"id":"//')
     
@@ -85,38 +67,33 @@ test_product_cache_invalidation() {
     fi
     
     if [ -z "$PRODUCT_ID" ]; then
-        echo -e "${RED}Ошибка создания продукта.${NC}"
-        echo "Ответ: ${CREATE_RESPONSE}"
+        echo -e "${RED}Error creating product.${NC}"
+        echo "Response: ${CREATE_RESPONSE}"
         return 1
     fi
     
-    echo -e "${GREEN}Тестовый продукт создан с ID: ${PRODUCT_ID}${NC}"
+    echo -e "${GREEN}Test product created with ID: ${PRODUCT_ID}${NC}"
     
-    
-    echo -e "${YELLOW}Получаем продукт для кэширования...${NC}"
-    
-    curl -s -X GET "${API_URL}/api/products/${PRODUCT_ID}" \
-        -H "Authorization: Bearer ${AUTH_TOKEN}" > /dev/null
-    
+    echo -e "${YELLOW}Getting product for caching...${NC}"
     
     curl -s -X GET "${API_URL}/api/products/${PRODUCT_ID}" \
         -H "Authorization: Bearer ${AUTH_TOKEN}" > /dev/null
     
-    echo -e "${GREEN}Продукт должен быть закэширован после повторного запроса.${NC}"
+    curl -s -X GET "${API_URL}/api/products/${PRODUCT_ID}" \
+        -H "Authorization: Bearer ${AUTH_TOKEN}" > /dev/null
     
+    echo -e "${GREEN}Product should be cached after repeated requests.${NC}"
     
     CACHE_KEY="product:${PRODUCT_ID}"
     if check_cache_stats "${CACHE_KEY}"; then
-        echo -e "${GREEN}Продукт успешно закэширован.${NC}"
+        echo -e "${GREEN}Product successfully cached.${NC}"
     else
-        echo -e "${RED}Продукт не найден в кэше. Возможно, кэширование не работает.${NC}"
+        echo -e "${RED}Product not found in cache. Caching may not be working.${NC}"
     fi
     
+    echo -e "${YELLOW}Updating product...${NC}"
     
-    echo -e "${YELLOW}Обновляем продукт...${NC}"
-    
-    
-    UPDATED_DATA='{"name":"Обновленный тестовый продукт","price":150,"stock":5}'
+    UPDATED_DATA='{"name":"Updated Test Product","price":150,"stock":5}'
     
     UPDATE_RESPONSE=$(curl -s -X PUT "${API_URL}/api/products/${PRODUCT_ID}" \
         -H "Content-Type: application/json" \
@@ -124,54 +101,46 @@ test_product_cache_invalidation() {
         -H "X-User-Role: admin" \
         -d "${UPDATED_DATA}")
     
-    echo -e "${GREEN}Продукт обновлен. Ответ: ${UPDATE_RESPONSE}${NC}"
-    
+    echo -e "${GREEN}Product updated. Response: ${UPDATE_RESPONSE}${NC}"
     
     if ! check_cache_stats "${CACHE_KEY}"; then
-        echo -e "${GREEN}Тест пройден! ✅ Кэш был инвалидирован после обновления продукта.${NC}"
+        echo -e "${GREEN}Test passed! Cache was invalidated after product update.${NC}"
     else
-        echo -e "${RED}Тест провален! ❌ Кэш не был инвалидирован после обновления продукта.${NC}"
+        echo -e "${RED}Test failed! Cache was not invalidated after product update.${NC}"
     fi
     
-    
-    echo -e "${YELLOW}Получаем обновленный продукт...${NC}"
+    echo -e "${YELLOW}Getting updated product...${NC}"
     
     PRODUCT_RESPONSE=$(curl -s -X GET "${API_URL}/api/products/${PRODUCT_ID}" \
         -H "Authorization: Bearer ${AUTH_TOKEN}")
     
-    
-    if echo "${PRODUCT_RESPONSE}" | grep -q "Обновленный тестовый продукт"; then
-        echo -e "${GREEN}Верно получены обновленные данные продукта.${NC}"
+    if echo "${PRODUCT_RESPONSE}" | grep -q "Updated Test Product"; then
+        echo -e "${GREEN}Updated product data correctly received.${NC}"
     else
-        echo -e "${RED}Ошибка! Получены старые данные продукта - кэш не инвалидирован.${NC}"
+        echo -e "${RED}Error! Received old product data - cache not invalidated.${NC}"
     fi
     
-    
-    echo -e "${YELLOW}Удаляем тестовый продукт...${NC}"
+    echo -e "${YELLOW}Deleting test product...${NC}"
     
     curl -s -X DELETE "${API_URL}/api/products/${PRODUCT_ID}" \
         -H "Authorization: Bearer ${AUTH_TOKEN}" \
         -H "X-User-Role: admin" > /dev/null
     
-    echo -e "${GREEN}Тестовый продукт удален.${NC}"
+    echo -e "${GREEN}Test product deleted.${NC}"
 }
 
-
 test_order_cache_invalidation() {
-    echo -e "\n${YELLOW}=== Тест 2: Инвалидация кэша продуктов при создании заказа ===${NC}"
+    echo -e "\n${YELLOW}=== Test 2: Product cache invalidation when creating an order ===${NC}"
     
+    echo -e "${YELLOW}Creating test product for order...${NC}"
     
-    echo -e "${YELLOW}Создаем тестовый продукт для заказа...${NC}"
-    
-    
-    PRODUCT_DATA='{"name":"Продукт для заказа","price":200,"stock":20}'
+    PRODUCT_DATA='{"name":"Order Product","price":200,"stock":20}'
     
     CREATE_RESPONSE=$(curl -s -X POST "${API_URL}/api/products" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer ${AUTH_TOKEN}" \
         -H "X-User-Role: admin" \
         -d "${PRODUCT_DATA}")
-    
     
     PRODUCT_ID=$(echo "${CREATE_RESPONSE}" | grep -o '"id":"[^"]*' | sed 's/"id":"//')
     
@@ -180,37 +149,31 @@ test_order_cache_invalidation() {
     fi
     
     if [ -z "$PRODUCT_ID" ]; then
-        echo -e "${RED}Ошибка создания продукта.${NC}"
-        echo "Ответ: ${CREATE_RESPONSE}"
+        echo -e "${RED}Error creating product.${NC}"
+        echo "Response: ${CREATE_RESPONSE}"
         return 1
     fi
     
-    echo -e "${GREEN}Тестовый продукт создан с ID: ${PRODUCT_ID}${NC}"
+    echo -e "${GREEN}Test product created with ID: ${PRODUCT_ID}${NC}"
     
-    
-    echo -e "${YELLOW}Кэшируем продукт...${NC}"
-    
-    curl -s -X GET "${API_URL}/api/products/${PRODUCT_ID}" \
-        -H "Authorization: Bearer ${AUTH_TOKEN}" > /dev/null
+    echo -e "${YELLOW}Caching product...${NC}"
     
     curl -s -X GET "${API_URL}/api/products/${PRODUCT_ID}" \
         -H "Authorization: Bearer ${AUTH_TOKEN}" > /dev/null
     
+    curl -s -X GET "${API_URL}/api/products/${PRODUCT_ID}" \
+        -H "Authorization: Bearer ${AUTH_TOKEN}" > /dev/null
     
     CACHE_KEY="product:${PRODUCT_ID}"
     if check_cache_stats "${CACHE_KEY}"; then
-        echo -e "${GREEN}Продукт успешно закэширован перед созданием заказа.${NC}"
+        echo -e "${GREEN}Product successfully cached before order creation.${NC}"
     else
-        echo -e "${RED}Продукт не найден в кэше. Возможно, кэширование не работает.${NC}"
+        echo -e "${RED}Product not found in cache. Caching may not be working.${NC}"
     fi
     
-    
-    echo -e "${YELLOW}Создаем заказ с тестовым продуктом...${NC}"
-    
-    
+    echo -e "${YELLOW}Creating order with test product...${NC}"
     
     USER_ID="user123"  
-    
     
     ORDER_DATA="{\"user_id\":\"${USER_ID}\",\"items\":[{\"product_id\":\"${PRODUCT_ID}\",\"quantity\":1}]}"
     
@@ -219,43 +182,37 @@ test_order_cache_invalidation() {
         -H "Authorization: Bearer ${AUTH_TOKEN}" \
         -d "${ORDER_DATA}")
     
-    
     ORDER_ID=$(echo "${CREATE_ORDER_RESPONSE}" | grep -o '"order_id":"[^"]*' | sed 's/"order_id":"//')
     
     if [ -z "$ORDER_ID" ]; then
-        echo -e "${RED}Ошибка создания заказа.${NC}"
-        echo "Ответ: ${CREATE_ORDER_RESPONSE}"
+        echo -e "${RED}Error creating order.${NC}"
+        echo "Response: ${CREATE_ORDER_RESPONSE}"
     else
-        echo -e "${GREEN}Заказ успешно создан с ID: ${ORDER_ID}${NC}"
+        echo -e "${GREEN}Order successfully created with ID: ${ORDER_ID}${NC}"
     fi
-    
     
     if ! check_cache_stats "${CACHE_KEY}"; then
-        echo -e "${GREEN}Тест пройден! ✅ Кэш продукта был инвалидирован после создания заказа.${NC}"
+        echo -e "${GREEN}Test passed! Product cache was invalidated after order creation.${NC}"
     else
-        echo -e "${RED}Тест провален! ❌ Кэш продукта не был инвалидирован после создания заказа.${NC}"
+        echo -e "${RED}Test failed! Product cache was not invalidated after order creation.${NC}"
     fi
     
-    
-    echo -e "${YELLOW}Удаляем тестовый заказ и продукт...${NC}"
-    
+    echo -e "${YELLOW}Deleting test order and product...${NC}"
     
     if [ ! -z "$ORDER_ID" ]; then
         curl -s -X DELETE "${API_URL}/api/orders/${ORDER_ID}" \
             -H "Authorization: Bearer ${AUTH_TOKEN}" > /dev/null
-        echo -e "${GREEN}Тестовый заказ удален.${NC}"
+        echo -e "${GREEN}Test order deleted.${NC}"
     fi
-    
     
     curl -s -X DELETE "${API_URL}/api/products/${PRODUCT_ID}" \
         -H "Authorization: Bearer ${AUTH_TOKEN}" \
         -H "X-User-Role: admin" > /dev/null
-    echo -e "${GREEN}Тестовый продукт удален.${NC}"
+    echo -e "${GREEN}Test product deleted.${NC}"
 }
 
-
-echo -e "\n${YELLOW}Запускаем тесты инвалидации кэша...${NC}"
+echo -e "\n${YELLOW}Running cache invalidation tests...${NC}"
 test_product_cache_invalidation
 test_order_cache_invalidation
 
-echo -e "\n${GREEN}Тестирование инвалидации кэша завершено!${NC}"
+echo -e "\n${GREEN}Cache invalidation testing completed!${NC}"
