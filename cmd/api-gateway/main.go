@@ -95,6 +95,16 @@ func proxyToService(serviceURL string, invalidateCache func(c *gin.Context, resp
 }
 
 func main() {
+    // Настраиваем логирование в файл
+    logFile, err := os.OpenFile("redis_cache.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+    if err != nil {
+        log.Printf("Ошибка при открытии файла логов: %v", err)
+    } else {
+        log.SetOutput(logFile)
+        defer logFile.Close()
+        log.Printf("Логирование настроено, логи сохраняются в redis_cache.log")
+    }
+
     r := gin.New()
     r.Use(gin.Recovery())
 
