@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net"
 	"net/http"
@@ -18,9 +19,9 @@ import (
 
 	grpcHandler "AdvProg2/handler/grpc"
 	httpHandler "AdvProg2/handler/http"
-	"AdvProg2/pkg/cache"
 	"AdvProg2/infrastructure/db"
 	"AdvProg2/infrastructure/messaging"
+	"AdvProg2/pkg/cache"
 	pb "AdvProg2/proto/user"
 	"AdvProg2/repository"
 	"AdvProg2/usecase"
@@ -136,6 +137,33 @@ func main() {
 	router.HandleFunc("/api/users/register", userHTTPHandler.Register).Methods("POST")
 	router.HandleFunc("/api/users/login", userHTTPHandler.Login).Methods("POST")
 	router.HandleFunc("/api/users/profile/{id}", userHTTPHandler.GetProfile).Methods("GET")
+
+	// Add this route handler in your user service
+	router.HandleFunc("/api/users/{id}", func(w http.ResponseWriter, r *http.Request) {
+		userId := mux.Vars(r)["id"]
+
+		// Fetch user from database
+		user, err := userRepo.GetByID(userId)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"error": "User not found"}`))
+			return
+		}
+		// Marshal user data to JSON
+		userJSON, err := json.Marshal(user)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"error": "Failed to serialize user data"}`))
+			return
+		}
+
+		// Return user data
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(userJSON)
+	}).Methods("GET")
 
 	// Set up admin routes
 	router.HandleFunc("/api/admin/products", adminHTTPHandler.CreateProduct).Methods("POST", "OPTIONS")

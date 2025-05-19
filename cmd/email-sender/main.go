@@ -20,7 +20,6 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Recovery())
 
-	// SMTP configuration (using environment variables for security)
 	smtpHost := os.Getenv("SMTP_HOST")
 	if smtpHost == "" {
 		smtpHost = "smtp.gmail.com"
@@ -29,11 +28,10 @@ func main() {
 	if smtpPort == "" {
 		smtpPort = "587"
 	}
-	smtpUsername := os.Getenv("SMTP_USERNAME")// Gmail email address
-	smtpPassword := os.Getenv("SMTP_PASSWORD")// Gmail App Password
+	smtpUsername := os.Getenv("SMTP_USERNAME")
+	smtpPassword := os.Getenv("SMTP_PASSWORD")
 
 
-	// Email sending endpoint
 	r.POST("/api/email/send", func(c *gin.Context) {
 		var req EmailRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -41,17 +39,14 @@ func main() {
 			return
 		}
 
-		// Configure the email message
 		m := gomail.NewMessage()
 		m.SetHeader("From", smtpUsername)
 		m.SetHeader("To", req.To)
 		m.SetHeader("Subject", req.Subject)
 		m.SetBody("text/plain", req.Body)
 
-		// Configure the SMTP dialer
 		d := gomail.NewDialer(smtpHost, 587, smtpUsername, smtpPassword)
 
-		// Send the email
 		if err := d.DialAndSend(m); err != nil {
 			log.Printf("Failed to send email: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send email: " + err.Error()})
@@ -61,7 +56,6 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"message": "Email sent successfully"})
 	})
 
-	// Health check endpoint
 	r.GET("/api/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "up",
