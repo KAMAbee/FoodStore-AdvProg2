@@ -8,17 +8,16 @@ document
     const productStock = parseInt(document.querySelector('input[name="productStock"]').value);
 
     try {
-      // Change this URL to point to the admin endpoint
       const response = await fetch("http://localhost:8085/api/admin/products", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
           "Origin": window.location.origin,
-          "X-User-Role": "admin"  // Add the admin role header
+          "X-User-Role": "admin"
         },
         body: JSON.stringify({
-          name: productName,      // Use lowercase field names to match Go struct
+          name: productName,
           price: productPrice,
           stock: productStock,
         }),
@@ -34,6 +33,43 @@ document
       }
     } catch (error) {
       alert(`Failed to add product: ${error}`);
+    }
+  });
+
+document
+  .getElementById("sendEmail-form")
+  .addEventListener("submit", async function (event) {
+    event.preventDefault();
+
+    const to = document.querySelector('input[name="to"]').value;
+    const subject = document.querySelector('input[name="subject"]').value;
+    const body = document.querySelector('textarea[name="body"]').value;
+
+    try {
+      const response = await fetch("/api/email/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Origin": window.location.origin,
+          "X-User-Role": "admin"
+        },
+        body: JSON.stringify({
+          to: to,
+          subject: subject,
+          body: body,
+        }),
+      });
+
+      if (response.ok) {
+        document.getElementById("sendEmail-form").reset();
+        alert("Email sent successfully!");
+      } else {
+        const error = await response.text();
+        alert(`Failed to send email: ${error}`);
+      }
+    } catch (error) {
+      alert(`Failed to send email: ${error}`);
     }
   });
 
@@ -145,13 +181,12 @@ function updatePagination(total, currentPage, perPage) {
 
 async function deleteProduct(productId) {
   try {
-    // Change from product service to admin API endpoint
     const response = await fetch(`http://localhost:8085/api/admin/products/${productId}`, {
       method: "DELETE",
       headers: {
         "Accept": "application/json",
         "Origin": window.location.origin,
-        "X-User-Role": "admin"  // Add admin role header
+        "X-User-Role": "admin"
       }
     });
     if (response.ok) {
@@ -188,7 +223,6 @@ async function submitUpdate(event, id) {
 
   const form = event.target;
   
-  // Simplify the product data structure - use only lowercase properties
   const updatedProduct = {
     name: form.Name.value,
     price: parseFloat(form.Price.value),
@@ -196,14 +230,13 @@ async function submitUpdate(event, id) {
   };
 
   try {
-    // Change from product service to admin API endpoint
     const response = await fetch(`http://localhost:8085/api/admin/products/${id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json",
         "Origin": window.location.origin,
-        "X-User-Role": "admin"  // Add admin role header
+        "X-User-Role": "admin"
       },
       body: JSON.stringify(updatedProduct),
     });

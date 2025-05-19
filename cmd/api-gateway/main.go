@@ -28,7 +28,6 @@ func proxyToService(serviceURL string, invalidateCache func(c *gin.Context, resp
             targetURL += "?" + c.Request.URL.RawQuery
         }
 
-        
         var bodyBytes []byte
         if invalidateCache != nil && (c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "PATCH") {
             bodyBytes, _ = io.ReadAll(c.Request.Body)
@@ -41,7 +40,6 @@ func proxyToService(serviceURL string, invalidateCache func(c *gin.Context, resp
             return
         }
 
-        
         if len(bodyBytes) > 0 {
             c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
         }
@@ -63,17 +61,14 @@ func proxyToService(serviceURL string, invalidateCache func(c *gin.Context, resp
         }
         defer resp.Body.Close()
 
-        
         respBodyBytes, err := io.ReadAll(resp.Body)
         if err != nil {
             c.JSON(http.StatusInternalServerError, gin.H{"error": "Error reading response: " + err.Error()})
             return
         }
         
-        
         resp.Body = io.NopCloser(bytes.NewBuffer(respBodyBytes))
 
-        
         c.Status(resp.StatusCode)
         for key, values := range resp.Header {
             for _, value := range values {
@@ -81,11 +76,9 @@ func proxyToService(serviceURL string, invalidateCache func(c *gin.Context, resp
             }
         }
 
-        
         c.DataFromReader(resp.StatusCode, int64(len(respBodyBytes)), resp.Header.Get("Content-Type"), 
                          bytes.NewReader(respBodyBytes), nil)
 
-        
         if invalidateCache != nil && (resp.StatusCode >= 200 && resp.StatusCode < 300) {
             if invalidateCache(c, resp) {
                 log.Printf("Cache invalidated for %s %s", c.Request.Method, c.Request.URL.Path)
@@ -98,13 +91,11 @@ func main() {
     r := gin.New()
     r.Use(gin.Recovery())
 
-    
     cacheClient := cache.New()
     log.Printf("Cache initialized")
     productCacheInvalidator := func(c *gin.Context, resp *http.Response) bool {
         method := c.Request.Method
         path := c.Request.URL.Path
-        
         
         var productID string
         if method == "PUT" || method == "DELETE" || method == "PATCH" {
@@ -117,7 +108,6 @@ func main() {
                 return true
             }
         } else if method == "POST" && resp.StatusCode == http.StatusCreated {
-            
             cacheClient.Delete("products:list")
             
             var productData map[string]interface{}
@@ -135,25 +125,21 @@ func main() {
         return false
     }
     
-    
     orderCacheInvalidator := func(c *gin.Context, resp *http.Response) bool {
         method := c.Request.Method
         path := c.Request.URL.Path
         
         if method == "POST" { 
-            
             var orderData map[string]interface{}
             body, _ := io.ReadAll(c.Request.Body)
             c.Request.Body = io.NopCloser(bytes.NewBuffer(body)) 
             
             if err := json.Unmarshal(body, &orderData); err == nil {
-                
                 if userID, ok := orderData["user_id"].(string); ok {
                     cacheKey := "user:" + userID + ":orders"
                     cacheClient.Delete(cacheKey)
                     log.Printf("Invalidated cache for user orders: %s", userID)
                 }
-                
                 
                 if items, ok := orderData["items"].([]interface{}); ok {
                     for _, item := range items {
@@ -169,7 +155,6 @@ func main() {
             }
             return true
         } else if method == "PATCH" || method == "DELETE" {
-            
             parts := strings.Split(path, "/")
             if len(parts) > 3 {
                 orderID := parts[3]
@@ -177,14 +162,12 @@ func main() {
                 cacheClient.Delete(cacheKey)
                 log.Printf("Invalidated cache for order ID: %s", orderID)
                 
-                
                 userIDParam := c.Query("user_id")
                 if userIDParam != "" {
                     userOrdersKey := "user:" + userIDParam + ":orders"
                     cacheClient.Delete(userOrdersKey)
                     log.Printf("Invalidated cache for user orders: %s", userIDParam)
                 }
-                
                 
                 if method == "PATCH" {
                     var statusUpdate map[string]interface{}
@@ -205,7 +188,6 @@ func main() {
         
         return false
     }
-    
     
     userCacheInvalidator := func(c *gin.Context, resp *http.Response) bool {
         method := c.Request.Method
@@ -228,7 +210,7 @@ func main() {
     r.Use(func(c *gin.Context) {
         c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
         c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
-        c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+        c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-User-Role")
 
         if c.Request.Method == "OPTIONS" {
             c.AbortWithStatus(204)
@@ -312,7 +294,6 @@ func main() {
         userAPI.PATCH("/:id", proxyToService(userServiceURL, userCacheInvalidator))
     }
 
-    
     adminServiceURL := os.Getenv("ADMIN_SERVICE_URL")
     if adminServiceURL == "" {
         adminServiceURL = "http://localhost:8085"
@@ -326,7 +307,17 @@ func main() {
         adminAPI.DELETE("/products/:id", proxyToService(adminServiceURL, productCacheInvalidator))
     }
 
-    
+    emailServiceURL := os.Getenv("EMAIL_SERVICE_URL")
+    if emailServiceURL == "" {
+        emailServiceURL = "http://localhost:8086"
+    }
+
+    emailAPI := r.Group("/api/email")
+    emailAPI.Use(middleware.AdminRequired())
+    {
+        emailAPI.POST("/send", proxyToService(emailServiceURL, nil))
+    }
+
     if os.Getenv("ENV") != "production" {
         r.GET("/api/debug/cache-stats", func(c *gin.Context) {
             stats := cacheClient.GetStats()

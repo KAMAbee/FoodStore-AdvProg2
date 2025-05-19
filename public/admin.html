@@ -21,14 +21,10 @@
     </header>
 
     <main class="main">
-
-        
-
         <section class="main__products">
             <h2 class="main__products-title">Add Product</h2>
 
             <form class="main__products-form" id="addProduct-form">
-
                 <div class="main__products-form-wrap">
                     <input class="main__products-form-input" type="text" name="productName" placeholder="Product Name"
                         required>
@@ -38,7 +34,19 @@
                         placeholder="Product Stock" min="0" required>
                 </div>
                 <button class="main__products-form-button" type="submit">Add Product</button>
+            </form>
 
+            <hr class="main__products-line">
+
+            <h2 class="main__products-title">Send Email</h2>
+
+            <form class="main__products-form" id="sendEmail-form">
+                <div class="main__products-form-wrap">
+                    <input class="main__products-form-input" type="email" name="to" placeholder="Recipient Email" required>
+                    <input class="main__products-form-input" type="text" name="subject" placeholder="Subject" required>
+                    <textarea class="main__products-form-input" name="body" placeholder="Email Body" required></textarea>
+                </div>
+                <button class="main__products-form-button" type="submit">Send Email</button>
             </form>
 
             <hr class="main__products-line">
@@ -47,7 +55,7 @@
 
             <form class="main__products-filter" id="filterProduct-form">
                 <div class="main__products-filter-wrap">
-                    <input class="main__products-filter-input" type="number" name="minPrice" placeholder="Min Price" min="0">
+                    <input class="main__products-filter-input" type="number" name="minPrice" posteriores="Min Price" min="0">
                     <input class="main__products-filter-input" type="number" name="maxPrice" placeholder="Max Price" min="0">
                 </div>
                 <button class="main__products-filter-button" type="submit">🔎</button>
@@ -63,7 +71,6 @@
         </div>
     </main>
     <script src="/static/scripts/api.js"></script>
-
     <script src="/static/scripts/admin.js"></script>
 </body>
 
