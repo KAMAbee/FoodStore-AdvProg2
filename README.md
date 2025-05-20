@@ -196,7 +196,7 @@ docker exec -it redis redis-cli
 # MONITOR        -> Real-time view
 ```
 
-### How to run tests
+### Run tests
 - Unit test
 ```bash
 go test -v ./infrastructure/db -run TestPostgresOrderRepository_Create
@@ -206,5 +206,10 @@ go test -v ./infrastructure/db -run TestPostgresOrderRepository_Create
 ```bash
 go test -v ./tests/integration -run TestOrderCreationFlow
 ```
+### Run database migration
+```bash
+migrate -path ./migrations -database "YOUR-DB-PATH" up
+```
+
 
 
